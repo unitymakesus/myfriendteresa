@@ -1,0 +1,107 @@
+.experience, .featured-on {
+  h2 {
+    font-size: 3.75em;
+    letter-spacing: 5px;
+    display: inline-block;
+    text-align: left;
+
+    span {
+      display: block;
+      font-size: 1.5rem;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+  }
+}
+
+.overlap-negative.overlap-negative {
+  & > div.et_pb_column {
+    margin-top: -50px;
+    padding: 0 20px;
+  }
+}
+
+.home {
+  .et_pb_blurb {
+    overflow: hidden;
+
+    &.blurb-pink {
+      .et_pb_blurb_description {
+        background: $color-pink;
+      }
+    }
+
+    &.blurb-teal {
+      .et_pb_blurb_description {
+        background: $color-teal;
+      }
+    }
+
+    &.blurb-yellow {
+      .et_pb_blurb_description {
+        background: $color-yellow;
+      }
+    }
+
+    &:hover, &:focus, &:active {
+      .et_pb_blurb_description {
+        top: 0;
+      }
+    }
+  }
+
+  .et_pb_main_blurb_image {
+    display: block;
+    margin: 0;
+
+    img {
+      display: block;
+      width: 100%;
+    }
+  }
+
+  .et_pb_blurb_container {
+    height: 5em;
+    overflow: hidden;
+  }
+
+  .et_pb_module_header {
+    margin: 0;
+    padding: 1em 0;
+    letter-spacing: 5px;
+  }
+
+  .et_pb_blurb_description {
+    position: absolute;
+    top: 100%;
+    bottom: 0;
+    transition: all 0.5s ease;
+    overflow: scroll;
+    padding: 15px;
+  }
+}
+
+.et_pb_fullwidth_header.difference {
+  position: relative;
+
+  .et_pb_fullwidth_header_container {
+    position: absolute;
+    bottom: 30px;
+    left: 30px;
+    background: $color-pink;
+    color: $color-white;
+    width: 50%;
+    box-shadow: 0px 2px 4px 0px rgba(0,0,0,0.5);
+    padding: 30px;
+
+    .header-content {
+      padding: 0;
+      margin: 0;
+    }
+
+    h2.et_pb_module_header {
+      padding: 0 0 10px;
+      letter-spacing: 0;
+    }
+  }
+}

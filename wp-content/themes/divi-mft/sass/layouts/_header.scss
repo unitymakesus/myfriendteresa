@@ -1,0 +1,227 @@
+.et_header_style_centered #main-header .logo_container {
+  padding: 10px 0 0;
+}
+
+.et_header_style_centered nav#top-menu-nav {
+  width: 100%;
+}
+.et_header_style_centered #top-menu.nav {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  -webkit-box-pack: justify;
+  -ms-flex-pack: justify;
+  justify-content: space-between;
+
+  & > li {
+    padding-right: 0;
+  }
+}
+
+.et_header_style_centered #main-header .container {
+  width: 90%;
+}
+
+.et_fixed_nav #main-header, .et_fixed_nav #top-header {
+  border-bottom: 2px solid $color-pink;
+}
+
+@media only screen and (min-width: 981px) {
+  .et_header_style_centered #top-menu>li.menu-item>a {
+    padding: 1.5em 0 1em;
+  }
+
+  .et_header_style_centered.et_hide_fixed_logo #main-header.et-fixed-header .logo_container.logo_container {
+    height: 0;
+  }
+}
+
+#et-secondary-nav .menu-item-has-children>a:first-child:after, #top-menu .menu-item-has-children>a:first-child:after {
+  display: none;
+}
+
+#top-menu-nav>ul>li {
+  position: relative;
+
+  &.et-hover, &:hover, &:focus, &:active {
+    &::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      bottom: -2px;
+      height: 2px;
+      width: 100%;
+      background: $color-teal;
+    }
+  }
+
+  & > a {
+    &:hover, &:focus, &:active {
+      opacity: 1;
+      color: $color-teal;
+    }
+  }
+}
+
+#top-menu li li {
+  padding: 0;
+
+  a {
+    width: 100%;
+
+    &:hover, &:focus, &:active {
+      opacity: 1;
+      color: $color-teal;
+    }
+  }
+}
+
+// Collapsible and accessible mobile menu
+@media (max-width: 980px) {
+  .et_header_style_centered.et_header_style_centered {
+
+    header#main-header {
+      padding: 10px 0;
+
+      .logo_container {
+        position: absolute;
+        width: 100%;
+      }
+
+      div#et-top-navigation {
+        float: right;
+        width: auto;
+        position: static;
+      }
+    }
+
+    #logo {
+      max-height: 80px;
+    }
+
+    #et_mobile_nav_menu {
+      float: right;
+      margin: 0;
+      position: static;
+
+      .mobile_nav {
+        background: none;
+        border-radius: 0;
+
+        .select_page {
+          display: none;
+        }
+      }
+    }
+
+    .et_mobile_menu {
+      top: 100px;
+      padding: 2em 0;
+
+      li a {
+        font-size: 18px;
+
+        &:hover, &:focus, &:active {
+          opacity: 1;
+          color: $color-teal;
+        }
+      }
+    }
+  }
+}
+
+.mobile_menu_toggle {
+  display: block;
+  position: relative;
+  line-height: 0;
+  padding: 24px 0;
+  text-decoration: none;
+
+  &::before {
+    color: $color-teal;
+    position: relative;
+    top: 0;
+    left: 0;
+    font-size: 32px;
+    content: "\61";
+    cursor: pointer;
+    text-shadow: 0 0;
+    font-family: ETmodules!important;
+    font-weight: 400;
+    font-style: normal;
+    font-variant: normal;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    line-height: 1;
+    text-transform: none;
+    speak: none;
+  }
+}
+
+.mobile_nav.opened {
+  .et_mobile_menu {
+    display: block;
+  }
+}
+
+#mobile_menu li {
+  position: relative;
+
+  &::before {
+    display: none;
+  }
+
+  a {
+    background: none;
+    font-weight: normal;
+    text-transform: uppercase;
+    text-decoration: none;
+    cursor: pointer;
+  }
+}
+
+#mobile_menu .menu-item-has-children {
+  & > a {
+    position: relative;
+
+    &::after {
+      display: block !important;
+      font-family: 'ETmodules';
+      text-align: center;
+      speak: none;
+      font-weight: normal;
+      font-variant: normal;
+      text-transform: none;
+      -webkit-font-smoothing: antialiased;
+      position: absolute;
+      font-size: 16px;
+      content: '\4c';
+      top: 13px;
+      right: 10px;
+    }
+  }
+
+  .sub-menu {
+    display: none;
+    opacity: 0;
+    overflow: hidden;
+    height: 0;
+    transition: all .3s ease-in-out;
+    padding-top: 0;
+  }
+
+  &.opened {
+    .sub-menu {
+      display: block;
+      height: auto;
+      opacity: 1;
+    }
+
+    & > a::after {
+      content: '\4b';
+    }
+  }
+}
