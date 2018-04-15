@@ -13,3 +13,11 @@
 .et_pb_widget_area_right {
   border-left: none !important;
 }
+
+.single-post #main-content .container:before {
+  display: none !important;
+}
+
+h4.widgettitle {
+  font-size: 24px;
+}
