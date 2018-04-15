@@ -40,7 +40,7 @@ a:focus {
 }
 .et_pb_button.et_pb_button:hover, .et_pb_button.et_pb_button:focus, .et_pb_button.et_pb_button:active {
   box-shadow: 0px 2px 4px 0px rgba(0, 0, 0, 0.5);
-  text-decoration: none;
+  text-decoration: none !important;
 }
 
 .et_header_style_centered #main-header .logo_container {
