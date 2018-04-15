@@ -1,0 +1,15 @@
+.et_pb_blog_grid {
+  .et_pb_salvattore_content[data-columns="2"] {
+    .column:nth-child(1) {
+      padding-right: 10px;
+    }
+
+    .column:nth-child(2) {
+      padding-left: 10px;
+    }
+  }
+}
+
+.et_pb_widget_area_right {
+  border-left: none !important;
+}

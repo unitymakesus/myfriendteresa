@@ -228,6 +228,57 @@ a:focus {
   content: '\4b';
 }
 
+.global-footer {
+  border-top: 2px solid #0BB3B4;
+}
+.global-footer .et_pb_social_media_follow {
+  padding-bottom: 25px;
+}
+.global-footer .et_pb_social_media_follow li a.icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 5px;
+}
+.global-footer .et_pb_social_media_follow li a.icon::before {
+  width: 50px;
+  height: 50px;
+  line-height: 50px;
+  font-size: 36px;
+}
+.global-footer .et_pb_social_media_follow li a.icon:hover, .global-footer .et_pb_social_media_follow li a.icon:focus, .global-footer .et_pb_social_media_follow li a.icon:active {
+  text-decoration: none;
+  box-shadow: 0px 2px 4px 0px rgba(0, 0, 0, 0.5);
+}
+.global-footer a:not(.et_pb_button) {
+  color: #4A4A4A;
+  font-weight: bold;
+  transition: all 0.3s ease;
+}
+.global-footer a:not(.et_pb_button):hover, .global-footer a:not(.et_pb_button):focus, .global-footer a:not(.et_pb_button):active {
+  color: #0BB3B4;
+  text-decoration: underline;
+}
+
+#footer-bottom .container {
+  width: 100%;
+  max-width: none;
+  padding: 0 30px;
+}
+
+#footer-info {
+  text-decoration: none;
+  display: block;
+  width: 100%;
+}
+#footer-info .left {
+  float: left;
+  text-align: left;
+}
+#footer-info .right {
+  float: right;
+  text-align: right;
+}
+
 .experience h2, .featured-on h2 {
   font-size: 3.75em;
   letter-spacing: 5px;
@@ -334,53 +385,13 @@ a:focus {
   letter-spacing: 0;
 }
 
-.global-footer {
-  border-top: 2px solid #0BB3B4;
+.et_pb_blog_grid .et_pb_salvattore_content[data-columns="2"] .column:nth-child(1) {
+  padding-right: 10px;
 }
-.global-footer .et_pb_social_media_follow {
-  padding-bottom: 25px;
-}
-.global-footer .et_pb_social_media_follow li a.icon {
-  width: 50px;
-  height: 50px;
-  border-radius: 5px;
-}
-.global-footer .et_pb_social_media_follow li a.icon::before {
-  width: 50px;
-  height: 50px;
-  line-height: 50px;
-  font-size: 36px;
-}
-.global-footer .et_pb_social_media_follow li a.icon:hover, .global-footer .et_pb_social_media_follow li a.icon:focus, .global-footer .et_pb_social_media_follow li a.icon:active {
-  text-decoration: none;
-  box-shadow: 0px 2px 4px 0px rgba(0, 0, 0, 0.5);
-}
-.global-footer a:not(.et_pb_button) {
-  color: #4A4A4A;
-  font-weight: bold;
-  transition: all 0.3s ease;
-}
-.global-footer a:not(.et_pb_button):hover, .global-footer a:not(.et_pb_button):focus, .global-footer a:not(.et_pb_button):active {
-  color: #0BB3B4;
-  text-decoration: underline;
+.et_pb_blog_grid .et_pb_salvattore_content[data-columns="2"] .column:nth-child(2) {
+  padding-left: 10px;
 }
 
-#footer-bottom .container {
-  width: 100%;
-  max-width: none;
-  padding: 0 30px;
-}
-
-#footer-info {
-  text-decoration: none;
-  display: block;
-  width: 100%;
-}
-#footer-info .left {
-  float: left;
-  text-align: left;
-}
-#footer-info .right {
-  float: right;
-  text-align: right;
+.et_pb_widget_area_right {
+  border-left: none !important;
 }
