@@ -354,7 +354,7 @@ a:focus {
 .home .et_pb_module_header {
   margin: 0;
   padding: 1em 0;
-  letter-spacing: 5px;
+  letter-spacing: 1px;
 }
 .home .et_pb_blurb_description {
   position: absolute;
@@ -410,7 +410,7 @@ a:focus {
   border-left: none !important;
 }
 
-.single-post #main-content .container:before {
+#main-content .container:before {
   display: none !important;
 }
 
