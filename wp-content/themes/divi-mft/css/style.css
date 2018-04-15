@@ -411,3 +411,10 @@ h4.widgettitle {
 .form-submit.form-submit .et_pb_button {
   color: #FFF;
 }
+
+.single-post h3 {
+  color: #0BB3B4;
+}
+.single-post h4 {
+  color: #E75762;
+}
