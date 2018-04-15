@@ -23,3 +23,11 @@
 a:focus {
   outline: rgb(153, 153, 158) auto 5px;
 }
+
+.entry-content {
+  a {
+    &:hover, &:active, &:focus {
+      text-decoration: underline;
+    }
+  }
+}
