@@ -309,11 +309,12 @@ a:focus {
   border-top: 2px solid #E5C11B;
 }
 
-.overlap-negative.overlap-negative > div.et_pb_column {
-  margin-top: -50px;
-  padding: 0 20px;
+@media (min-width: 981px) {
+  .overlap-negative.overlap-negative > div.et_pb_column {
+    margin-top: -50px;
+    padding: 0 20px;
+  }
 }
-
 .home .et_pb_blurb {
   overflow: hidden;
 }
