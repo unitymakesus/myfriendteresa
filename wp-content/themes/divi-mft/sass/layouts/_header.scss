@@ -68,6 +68,7 @@
 
 #top-menu li li {
   padding: 0;
+  width: 100%;
 
   a {
     width: 100%;
@@ -77,6 +78,10 @@
       color: $color-teal;
     }
   }
+}
+
+#top-menu li.current-menu-ancestor>a, #top-menu li.current-menu-item>a {
+  color: $color-pink;
 }
 
 // Collapsible and accessible mobile menu
