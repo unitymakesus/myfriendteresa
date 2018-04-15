@@ -412,9 +412,9 @@ h4.widgettitle {
   color: #FFF;
 }
 
-.single-post h3 {
+.single-post .entry-content h3 {
   color: #0BB3B4;
 }
-.single-post h4 {
+.single-post .entry-content h4 {
   color: #E75762;
 }
