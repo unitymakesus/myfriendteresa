@@ -31,3 +31,14 @@ h4.widgettitle {
     color: $color-pink;
   }
 }
+
+.archive {
+  h2.entry-title {
+    font-family: 'Old Standard TT',Georgia,"Times New Roman",serif;
+    font-size: 35px;
+
+    a {
+      color: $color-teal;
+    }
+  }
+}

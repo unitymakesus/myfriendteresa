@@ -294,7 +294,7 @@ a:focus {
 
 .experience h2, .featured-on h2 {
   font-size: 3.75em;
-  letter-spacing: 5px;
+  letter-spacing: 3px;
   display: inline-block;
   text-align: left;
 }
@@ -423,4 +423,12 @@ h4.widgettitle {
 }
 .single-post .entry-content h4 {
   color: #E75762;
+}
+
+.archive h2.entry-title {
+  font-family: 'Old Standard TT',Georgia,"Times New Roman",serif;
+  font-size: 35px;
+}
+.archive h2.entry-title a {
+  color: #0BB3B4;
 }
