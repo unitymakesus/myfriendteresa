@@ -43,6 +43,53 @@ a:focus {
   text-decoration: none !important;
 }
 
+.wpcf7 {
+  margin-bottom: 20px;
+}
+.wpcf7 .row {
+  position: relative;
+  display: block;
+  margin: 0 -20px 20px;
+}
+.wpcf7 .row::after {
+  content: "";
+  display: table;
+  clear: both;
+}
+.wpcf7 .row .col {
+  position: relative;
+}
+@media only screen and (min-width: 981px) {
+  .wpcf7 .row .col.m6 {
+    float: left;
+    width: 50%;
+    padding: 0 20px;
+  }
+}
+.wpcf7 label {
+  display: block;
+}
+.wpcf7 input, .wpcf7 textarea {
+  display: block;
+  width: 100%;
+  padding: 3px 5px;
+  font-size: 18px;
+  background: #efefef;
+}
+
+input.wpcf7-submit {
+  display: block;
+  padding: 0.3em 3em;
+  color: #FFF;
+  background: #62336A;
+  border: none;
+  font-size: 22px;
+}
+input.wpcf7-submit:hover, input.wpcf7-submit:focus, input.wpcf7-submit:active {
+  box-shadow: 0px 2px 4px 0px rgba(0, 0, 0, 0.5);
+  text-decoration: none !important;
+}
+
 .et_header_style_centered #main-header .logo_container {
   padding: 10px 0 0;
 }

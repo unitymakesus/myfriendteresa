@@ -1,0 +1,53 @@
+.wpcf7 {
+  margin-bottom: 20px;
+  
+  .row {
+    position: relative;
+    display: block;
+    margin: 0 -20px 20px;
+
+    &::after {
+      content: "";
+      display: table;
+      clear: both;
+    }
+
+    .col {
+      position: relative;
+
+      &.m6 {
+        @media only screen and (min-width: 981px) {
+          float: left;
+          width: 50%;
+          padding: 0 20px;
+        }
+      }
+    }
+  }
+
+  label {
+    display: block;
+  }
+
+  input, textarea {
+    display: block;
+    width: 100%;
+    padding: 3px 5px;
+    font-size: 18px;
+    background: #efefef;
+  }
+}
+
+input.wpcf7-submit {
+  display: block;
+  padding: 0.3em 3em;
+  color: $color-white;
+  background: $color-purple;
+  border: none;
+  font-size: 22px;
+
+  &:hover, &:focus, &:active {
+    box-shadow: 0px 2px 4px 0px rgba(0,0,0,0.5);
+    text-decoration: none !important;
+  }
+}
