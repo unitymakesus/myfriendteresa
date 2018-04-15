@@ -4,6 +4,10 @@
 
   &.comment-reply-link {
     padding: .3em 1em !important;
+
+    &:hover, &:focus, &:active {
+      padding: .3em 2em .3em .7em !important;
+    }
   }
 
   &:hover, &:focus, &:active {

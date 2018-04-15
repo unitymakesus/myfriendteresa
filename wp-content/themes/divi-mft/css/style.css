@@ -35,6 +35,9 @@ a:focus {
 .et_pb_button.et_pb_button.comment-reply-link {
   padding: .3em 1em !important;
 }
+.et_pb_button.et_pb_button.comment-reply-link:hover, .et_pb_button.et_pb_button.comment-reply-link:focus, .et_pb_button.et_pb_button.comment-reply-link:active {
+  padding: .3em 2em .3em .7em !important;
+}
 .et_pb_button.et_pb_button:hover, .et_pb_button.et_pb_button:focus, .et_pb_button.et_pb_button:active {
   box-shadow: 0px 2px 4px 0px rgba(0, 0, 0, 0.5);
 }
