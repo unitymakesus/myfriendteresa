@@ -340,6 +340,10 @@ input.wpcf7-submit:hover, input.wpcf7-submit:focus, input.wpcf7-submit:active {
   text-align: right;
 }
 
+.et_pb_section_video_bg.et_pb_section_video_bg, .mejs-container.mejs-container {
+  background: transparent;
+}
+
 .experience h2, .featured-on h2 {
   font-size: 3.75em;
   letter-spacing: 3px;
