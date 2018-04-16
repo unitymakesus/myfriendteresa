@@ -43,7 +43,7 @@ a:focus {
   text-decoration: none !important;
 }
 
-.wpcf7 {
+.wpcf7 fieldset {
   margin-bottom: 20px;
 }
 .wpcf7 .row {
@@ -78,7 +78,8 @@ a:focus {
 }
 
 input.wpcf7-submit {
-  display: block;
+  display: inline-block;
+  width: auto;
   padding: 0.3em 3em;
   color: #FFF;
   background: #62336A;
