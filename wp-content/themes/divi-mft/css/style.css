@@ -405,6 +405,9 @@ input.wpcf7-submit:hover, input.wpcf7-submit:focus, input.wpcf7-submit:active {
 .home .et_pb_blurb:hover .et_pb_blurb_description, .home .et_pb_blurb:focus .et_pb_blurb_description, .home .et_pb_blurb:active .et_pb_blurb_description {
   top: 0;
 }
+.home .et_pb_blurb_content {
+  max-width: 100%;
+}
 .home .et_pb_main_blurb_image {
   display: block;
   margin: 0;
