@@ -339,7 +339,21 @@ input.wpcf7-submit:hover, input.wpcf7-submit:focus, input.wpcf7-submit:active {
   float: right;
   text-align: right;
 }
+@media (max-width: 479px) {
+  #footer-info .right {
+    float: left;
+    clear: left;
+    text-align: left;
+  }
+}
 
+@media (max-width: 479px) {
+  .global-footer .et_pb_text_align_right, .global-footer
+  .et_pb_button_alignment_right {
+    text-align: left;
+    max-width: 100%;
+  }
+}
 .et_pb_section_video_bg.et_pb_section_video_bg, .mejs-container.mejs-container {
   background: transparent;
 }
@@ -441,6 +455,12 @@ input.wpcf7-submit:hover, input.wpcf7-submit:focus, input.wpcf7-submit:active {
   width: 50%;
   box-shadow: 0px 2px 4px 0px rgba(0, 0, 0, 0.5);
   padding: 30px;
+}
+@media (max-width: 600px) {
+  .et_pb_fullwidth_header.difference .et_pb_fullwidth_header_container {
+    width: auto;
+    right: 30px;
+  }
 }
 .et_pb_fullwidth_header.difference .et_pb_fullwidth_header_container .header-content {
   padding: 0;
