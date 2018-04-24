@@ -22,4 +22,6 @@ jQuery(document).ready(function($) {
     }
   });
 
+  // Mute all bg videos
+  $('.et_pb_section_video_bg video').attr('muted', '');
 });
