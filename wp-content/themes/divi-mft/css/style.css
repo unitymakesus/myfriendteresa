@@ -402,6 +402,12 @@ input.wpcf7-submit:hover, input.wpcf7-submit:focus, input.wpcf7-submit:active {
 .home .et_pb_blurb.blurb-yellow .et_pb_blurb_description a {
   color: #E5C11B;
 }
+.home .et_pb_blurb.blurb-blue .et_pb_blurb_description {
+  background: #3D5C8B;
+}
+.home .et_pb_blurb.blurb-blue .et_pb_blurb_description a {
+  color: #3D5C8B;
+}
 .home .et_pb_blurb:hover .et_pb_blurb_description, .home .et_pb_blurb:focus .et_pb_blurb_description, .home .et_pb_blurb:active .et_pb_blurb_description {
   top: 0;
 }

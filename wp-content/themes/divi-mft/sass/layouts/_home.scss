@@ -65,6 +65,16 @@
       }
     }
 
+    &.blurb-blue {
+      .et_pb_blurb_description {
+        background: $color-blue;
+
+        a {
+          color: $color-blue;
+        }
+      }
+    }
+
     &:hover, &:focus, &:active {
       .et_pb_blurb_description {
         top: 0;
