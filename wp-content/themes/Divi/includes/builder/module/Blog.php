@@ -1,61 +1,20 @@
 <?php
 
+require_once 'helpers/Overlay.php';
+
 class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 	function init() {
 		$this->name       = esc_html__( 'Blog', 'et_builder' );
+		$this->plural     = esc_html__( 'Blogs', 'et_builder' );
 		$this->slug       = 'et_pb_blog';
-		$this->fb_support = true;
-
-		$this->whitelisted_fields = array(
-			'fullwidth',
-			'posts_number',
-			'include_categories',
-			'meta_date',
-			'show_thumbnail',
-			'show_content',
-			'show_more',
-			'show_author',
-			'show_date',
-			'show_categories',
-			'show_comments',
-			'show_pagination',
-			'offset_number',
-			'background_layout',
-			'admin_label',
-			'module_id',
-			'module_class',
-			'masonry_tile_background_color',
-			'use_overlay',
-			'overlay_icon_color',
-			'hover_overlay_color',
-			'hover_icon',
-		);
-
-		$this->fields_defaults = array(
-			'fullwidth'         => array( 'on' ),
-			'posts_number'      => array( 10, 'add_default_setting' ),
-			'meta_date'         => array( 'M j, Y', 'add_default_setting' ),
-			'show_thumbnail'    => array( 'on' ),
-			'show_content'      => array( 'off' ),
-			'show_more'         => array( 'off' ),
-			'show_author'       => array( 'on' ),
-			'show_date'         => array( 'on' ),
-			'show_categories'   => array( 'on' ),
-			'show_comments'     => array( 'off' ),
-			'show_pagination'   => array( 'on' ),
-			'offset_number'     => array( 0, 'only_default_setting' ),
-			'background_layout' => array( 'light' ),
-			'use_overlay'       => array( 'off' ),
-		);
-
+		$this->vb_support = 'on';
 		$this->main_css_element = '%%order_class%% .et_pb_post';
 
-		$this->options_toggles = array(
+		$this->settings_modal_toggles = array(
 			'general'  => array(
 				'toggles' => array(
 					'main_content' => esc_html__( 'Content', 'et_builder' ),
 					'elements'     => esc_html__( 'Elements', 'et_builder' ),
-					'background'   => esc_html__( 'Background', 'et_builder' ),
 				),
 			),
 			'advanced' => array(
@@ -64,42 +23,27 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 					'overlay' => esc_html__( 'Overlay', 'et_builder' ),
 					'image' => array(
 						'title' => esc_html__( 'Image', 'et_builder' ),
-						'priority' => 51,
+						'priority' => 49,
 					),
 					'text'    => array(
 						'title'    => esc_html__( 'Text', 'et_builder' ),
-						'priority' => 49,
+						'priority' => 51,
 					),
 				),
 			),
 		);
 
-		$this->advanced_options = array(
-			'border' => array(
-				'css' => array(
-					'main' => array(
-						'border_radii'  => "%%order_class%% .et_pb_blog_grid .et_pb_post",
-						'border_styles' => "%%order_class%% .et_pb_blog_grid .et_pb_post",
-					),
-				),
-				'depends_to'      => array( 'fullwidth' ),
-				'depends_show_if' => 'off',
-				'defaults' => array(
-					'border_radii'  => 'on|0px|0px|0px|0px',
-					'border_styles' => array(
-						'width' => '1px',
-						'color' => '#d8d8d8',
-						'style' => 'solid',
-					),
-				),
-			),
-			'fonts' => array(
+		$this->advanced_fields = array(
+			'fonts'                 => array(
 				'header' => array(
 					'label'    => esc_html__( 'Title', 'et_builder' ),
 					'css'      => array(
 						'main' => "{$this->main_css_element} .entry-title",
+						'font' => "{$this->main_css_element} .entry-title a",
 						'color' => "{$this->main_css_element} .entry-title a",
-						'plugin_main' => "{$this->main_css_element} .entry-title, {$this->main_css_element} .entry-title a",
+						'limited_main' => "{$this->main_css_element} .entry-title, {$this->main_css_element} .entry-title a",
+						'hover'        => "{$this->main_css_element} .entry-title:hover, {$this->main_css_element} .entry-title:hover a",
+						'color_hover'  => "{$this->main_css_element} .entry-title:hover a",
 						'important' => 'all',
 					),
 					'header_level' => array(
@@ -110,27 +54,47 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 					),
 				),
 				'body'   => array(
-					'label'    => esc_html__( 'Body', 'et_builder' ),
-					'css'      => array(
-						'main'        => "{$this->main_css_element} .post-content, %%order_class%%.et_pb_bg_layout_light .et_pb_post .post-content p, %%order_class%%.et_pb_bg_layout_dark .et_pb_post .post-content p",
-						'color'       => "{$this->main_css_element}, {$this->main_css_element} .post-content *",
-						'line_height' => "{$this->main_css_element} p",
-						'plugin_main' => "{$this->main_css_element}, %%order_class%%.et_pb_bg_layout_light .et_pb_post .post-content p, %%order_class%%.et_pb_bg_layout_dark .et_pb_post .post-content p, %%order_class%%.et_pb_bg_layout_light .et_pb_post a.more-link, %%order_class%%.et_pb_bg_layout_dark .et_pb_post a.more-link",
+					'label'          => esc_html__( 'Body', 'et_builder' ),
+					'css'            => array(
+						'main'         => "{$this->main_css_element} .post-content, %%order_class%%.et_pb_bg_layout_light .et_pb_post .post-content p, %%order_class%%.et_pb_bg_layout_dark .et_pb_post .post-content p",
+						'color'        => "{$this->main_css_element}, {$this->main_css_element} .post-content *",
+						'line_height'  => "{$this->main_css_element} p",
+						'limited_main' => "{$this->main_css_element}, %%order_class%%.et_pb_bg_layout_light .et_pb_post .post-content p, %%order_class%%.et_pb_bg_layout_dark .et_pb_post .post-content p, %%order_class%%.et_pb_bg_layout_light .et_pb_post a.more-link, %%order_class%%.et_pb_bg_layout_dark .et_pb_post a.more-link",
+					),
+					'block_elements' => array(
+						'tabbed_subtoggles' => true,
+						'bb_icons_support'  => true,
+						'css'               => array(
+							'link'  => "{$this->main_css_element} .post-content a, %%order_class%%.et_pb_bg_layout_light .et_pb_post .post-content a, %%order_class%%.et_pb_bg_layout_dark .et_pb_post .post-content a",
+							'ul'    => "{$this->main_css_element} .post-content ul, %%order_class%%.et_pb_bg_layout_light .et_pb_post .post-content ul, %%order_class%%.et_pb_bg_layout_dark .et_pb_post .post-content ul",
+							'ol'    => "{$this->main_css_element} .post-content ol, %%order_class%%.et_pb_bg_layout_light .et_pb_post .post-content ol, %%order_class%%.et_pb_bg_layout_dark .et_pb_post .post-content ol",
+							'quote' => "{$this->main_css_element} .post-content blockquote, %%order_class%%.et_pb_bg_layout_light .et_pb_post .post-content blockquote, %%order_class%%.et_pb_bg_layout_dark .et_pb_post .post-content blockquote",
+						),
 					),
 				),
 				'meta' => array(
 					'label'    => esc_html__( 'Meta', 'et_builder' ),
 					'css'      => array(
-						'main'        => "{$this->main_css_element} .post-meta, {$this->main_css_element} .post-meta a",
-						'plugin_main' => "{$this->main_css_element} .post-meta, {$this->main_css_element} .post-meta a, {$this->main_css_element} .post-meta span",
+						'main'         => "{$this->main_css_element} .post-meta, {$this->main_css_element} .post-meta a",
+						'limited_main' => "{$this->main_css_element} .post-meta, {$this->main_css_element} .post-meta a, {$this->main_css_element} .post-meta span",
+						'hover'        => "{$this->main_css_element} .post-meta:hover, {$this->main_css_element} .post-meta:hover a, {$this->main_css_element} .post-meta:hover span",
 					),
+				),
+				'read_more'  => array(
+					'label'           => esc_html__( 'Read More', 'et_builder' ),
+					'css'             => array(
+						'main'  => "{$this->main_css_element} .more-link",
+						'hover' => "{$this->main_css_element} .more-link:hover",
+					),
+					'hide_text_align' => true,
 				),
 				'pagination' => array(
 					'label'    => esc_html__( 'Pagination', 'et_builder' ),
 					'css'      => array(
-						'main' => function_exists( 'wp_pagenavi' ) ? '%%order_class%% .wp-pagenavi a, %%order_class%% .wp-pagenavi span' : '%%order_class%% .pagination a',
+						'main'       => function_exists( 'wp_pagenavi' ) ? '%%order_class%% .wp-pagenavi a, %%order_class%% .wp-pagenavi span' : '%%order_class%% .pagination a',
 						'important'  => function_exists( 'wp_pagenavi' ) ? 'all' : array(),
 						'text_align' => '%%order_class%% .wp-pagenavi',
+						'hover'      => function_exists( 'wp_pagenavi' ) ? '%%order_class%% .wp-pagenavi a:hover, %%order_class%% .wp-pagenavi span:hover' : '%%order_class%% .pagination a:hover',
 					),
 					'hide_text_align' => ! function_exists( 'wp_pagenavi' ),
 					'text_align' => array(
@@ -138,46 +102,125 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 					),
 				),
 			),
-			'background' => array(
+			'background'            => array(
 				'css' => array(
 					'main' => '%%order_class%%',
 				),
 			),
-			'custom_margin_padding' => array(
-				'css'           => array(
-					'main' => '%%order_class%%',
+			'borders'               => array(
+				'default' => array(
+					'css' => array(
+						'main' => array(
+							'border_radii'  => "%%order_class%% .et_pb_blog_grid .et_pb_post",
+							'border_styles' => "%%order_class%% .et_pb_blog_grid .et_pb_post",
+							'border_styles_hover' => "%%order_class%% .et_pb_blog_grid .et_pb_post:hover",
+						),
+					),
+					'depends_on'      => array( 'fullwidth' ),
+					'depends_show_if' => 'off',
+					'defaults' => array(
+						'border_radii'  => 'on||||',
+						'border_styles' => array(
+							'width' => '1px',
+							'color' => '#d8d8d8',
+							'style' => 'solid',
+						),
+					),
+					'label_prefix' => esc_html__( 'Grid Layout', 'et_builder' ),
+				),
+				'fullwidth' => array(
+					'css' => array(
+						'main' => array(
+							'border_radii'  => "%%order_class%%:not(.et_pb_blog_grid) .et_pb_post",
+							'border_styles' => "%%order_class%%:not(.et_pb_blog_grid) .et_pb_post",
+						),
+					),
+					'depends_on'      => array( 'fullwidth' ),
+					'depends_show_if' => 'on',
+					'defaults'        => array(
+						'border_radii'  => 'on||||',
+						'border_styles' => array(
+							'width' => '0px',
+							'color' => '#333333',
+							'style' => 'solid',
+						),
+					),
+				),
+				'image'   => array(
+					'css'          => array(
+						'main' => array(
+							'border_radii'  => '%%order_class%% .et_pb_post .entry-featured-image-url img, %%order_class%% .et_pb_post .et_pb_slides, %%order_class%% .et_pb_post .et_pb_video_overlay',
+							'border_styles' => '%%order_class%% .et_pb_post .entry-featured-image-url img, %%order_class%% .et_pb_post .et_pb_slides, %%order_class%% .et_pb_post .et_pb_video_overlay',
+						)
+					),
+					'label_prefix' => esc_html__( 'Image', 'et_builder' ),
+					'tab_slug'     => 'advanced',
+					'toggle_slug'  => 'image',
 				),
 			),
-			'max_width' => array(),
-			'text'      => array(
+			'box_shadow'     => array(
+				'default' => array(),
+				'image'   => array(
+					'label'           => esc_html__( 'Image Box Shadow', 'et_builder' ),
+					'option_category' => 'layout',
+					'tab_slug'        => 'advanced',
+					'toggle_slug'     => 'image',
+					'css'             => array(
+						'main' => '%%order_class%% img, %%order_class%% .et_pb_slides, %%order_class%% .et_pb_video_overlay',
+					),
+					'default_on_fronts'  => array(
+						'color'    => '',
+						'position' => '',
+					),
+				),
+			),
+			'margin_padding' => array(
+				'css'           => array(
+					'main' => '%%order_class%%',
+					'important' => array( 'custom_margin' )
+				),
+			),
+			'text'                  => array(
+				'use_background_layout' => true,
 				'css' => array(
 					'text_shadow' => '%%order_class%%',
 				),
+				'options' => array(
+					'background_layout' => array(
+						'depends_show_if' => 'on',
+						'default_on_front' => 'light',
+						'hover' => 'tabs',
+					),
+				),
 			),
-			'filters' => array(
+			'filters'               => array(
+				'css' => array(
+					'main' => '%%order_class%%',
+				),
 				'child_filters_target' => array(
 					'tab_slug' => 'advanced',
 					'toggle_slug' => 'image',
 				),
-            ),
-			'image' => array(
+			),
+			'image'                 => array(
 				'css' => array(
-					'main' => array(
+					'main' => implode(', ', array(
 						'%%order_class%% img',
 						'%%order_class%% .et_pb_slides',
 						'%%order_class%% .et_pb_video_overlay',
-					),
+					)),
 				),
 			),
+			'button'                => false,
 		);
 
-		$this->custom_css_options = array(
+		$this->custom_css_fields = array(
 			'title' => array(
 				'label'    => esc_html__( 'Title', 'et_builder' ),
 				'selector' => '.entry-title',
 			),
 			'content' => array(
-				'label'    => esc_html__( 'Content', 'et_builder' ),
+				'label'    => esc_html__( 'Body', 'et_builder' ),
 				'selector' => '.post-content',
 			),
 			'post_meta' => array(
@@ -195,6 +238,17 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 			'read_more' => array(
 				'label'    => esc_html__( 'Read More Button', 'et_builder' ),
 				'selector' => '.more-link',
+			),
+		);
+
+		$this->help_videos = array(
+			array(
+				'id'   => esc_html( 'PRaWaGI75wc' ),
+				'name' => esc_html__( 'An introduction to the Blog module', 'et_builder' ),
+			),
+			array(
+				'id'   => esc_html( 'jETCzKVv6P0' ),
+				'name' => esc_html__( 'How To Use Divi Blog Post Formats', 'et_builder' ),
 			),
 		);
 	}
@@ -223,9 +277,10 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 				),
 				'tab_slug'           => 'advanced',
 				'toggle_slug'        => 'layout',
+				'default_on_front'   => 'on',
 			),
 			'posts_number' => array(
-				'label'             => esc_html__( 'Posts Number', 'et_builder' ),
+				'label'             => esc_html__( 'Post Count', 'et_builder' ),
 				'type'              => 'text',
 				'option_category'   => 'configuration',
 				'description'       => esc_html__( 'Choose how much posts you would like to display per page.', 'et_builder' ),
@@ -233,10 +288,15 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 					'__posts',
 				),
 				'toggle_slug'       => 'main_content',
+				'default'           => 10,
 			),
 			'include_categories' => array(
-				'label'            => esc_html__( 'Include Categories', 'et_builder' ),
-				'renderer'         => 'et_builder_include_categories_option',
+				'label'            => esc_html__( 'Included Categories', 'et_builder' ),
+				'type'             => 'categories',
+				'meta_categories'  => array(
+					'all'     => esc_html__( 'All Categories', 'et_builder' ),
+					'current' => esc_html__( 'Current Category', 'et_builder' ),
+				),
 				'option_category'  => 'basic_option',
 				'renderer_options' => array(
 					'use_terms' => false,
@@ -248,7 +308,7 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 				),
 			),
 			'meta_date' => array(
-				'label'             => esc_html__( 'Meta Date Format', 'et_builder' ),
+				'label'             => esc_html__( 'Date Format', 'et_builder' ),
 				'type'              => 'text',
 				'option_category'   => 'configuration',
 				'description'       => esc_html__( 'If you would like to adjust the date format, input the appropriate PHP date format here.', 'et_builder' ),
@@ -256,6 +316,7 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 				'computed_affects'  => array(
 					'__posts',
 				),
+				'default'           => 'M j, Y',
 			),
 			'show_thumbnail' => array(
 				'label'             => esc_html__( 'Show Featured Image', 'et_builder' ),
@@ -270,9 +331,12 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 					'__posts',
 				),
 				'toggle_slug'       => 'elements',
+				'default_on_front'  => 'on',
+				'mobile_options'    => true,
+				'hover'             => 'tabs',
 			),
 			'show_content' => array(
-				'label'             => esc_html__( 'Content', 'et_builder' ),
+				'label'             => esc_html__( 'Content Length', 'et_builder' ),
 				'type'              => 'select',
 				'option_category'   => 'configuration',
 				'options'           => array(
@@ -281,12 +345,46 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 				),
 				'affects'           => array(
 					'show_more',
+					'show_excerpt',
+					'use_manual_excerpt',
+					'excerpt_length',
 				),
 				'description'       => esc_html__( 'Showing the full content will not truncate your posts on the index page. Showing the excerpt will only display your excerpt text.', 'et_builder' ),
 				'toggle_slug'       => 'main_content',
 				'computed_affects'  => array(
 					'__posts',
 				),
+				'default_on_front'  => 'off',
+				'mobile_options'    => true,
+				'hover'             => 'tabs',
+			),
+			'use_manual_excerpt' => array(
+				'label'             => esc_html__( 'Use Post Excerpts', 'et_builder' ),
+				'description'       => esc_html__( 'Disable this option if you want to ignore manually defined excerpts and always generate it automatically.', 'et_builder' ),
+				'type'              => 'yes_no_button',
+				'options'           => array(
+					'on'  => esc_html__( 'Yes', 'et_builder' ),
+					'off' => esc_html__( 'No', 'et_builder' ),
+				),
+				'default'           => 'on',
+				'computed_affects'  => array(
+					'__posts',
+				),
+				'depends_show_if'   => 'off',
+				'toggle_slug'       => 'main_content',
+				'option_category'   => 'configuration',
+			),
+			'excerpt_length' => array(
+				'label'             => esc_html__( 'Excerpt Length', 'et_builder' ),
+				'description'       => esc_html__( 'Define the length of automatically generated excerpts. Leave blank for default ( 270 ) ', 'et_builder' ),
+				'type'              => 'text',
+				'default'           => '270',
+				'computed_affects'  => array(
+					'__posts',
+				),
+				'depends_show_if'   => 'off',
+				'toggle_slug'       => 'main_content',
+				'option_category'   => 'configuration',
 			),
 			'show_more' => array(
 				'label'             => esc_html__( 'Show Read More Button', 'et_builder' ),
@@ -302,6 +400,9 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 					'__posts',
 				),
 				'toggle_slug'       => 'elements',
+				'default_on_front'  => 'off',
+				'mobile_options'    => true,
+				'hover'             => 'tabs',
 			),
 			'show_author' => array(
 				'label'             => esc_html__( 'Show Author', 'et_builder' ),
@@ -316,6 +417,9 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 					'__posts',
 				),
 				'toggle_slug'        => 'elements',
+				'default_on_front'   => 'on',
+				'mobile_options'    => true,
+				'hover'             => 'tabs',
 			),
 			'show_date' => array(
 				'label'             => esc_html__( 'Show Date', 'et_builder' ),
@@ -330,6 +434,9 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 					'__posts',
 				),
 				'toggle_slug'        => 'elements',
+				'default_on_front'   => 'on',
+				'mobile_options'    => true,
+				'hover'             => 'tabs',
 			),
 			'show_categories' => array(
 				'label'             => esc_html__( 'Show Categories', 'et_builder' ),
@@ -344,6 +451,9 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 					'__posts',
 				),
 				'toggle_slug'        => 'elements',
+				'default_on_front'   => 'on',
+				'mobile_options'     => true,
+				'hover'              => 'tabs',
 			),
 			'show_comments' => array(
 				'label'             => esc_html__( 'Show Comment Count', 'et_builder' ),
@@ -358,6 +468,27 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 					'__posts',
 				),
 				'toggle_slug'        => 'elements',
+				'default_on_front'   => 'off',
+				'mobile_options'    => true,
+				'hover'             => 'tabs',
+			),
+			'show_excerpt' => array(
+				'label'            => esc_html__( 'Show Excerpt', 'et_builder' ),
+				'description'      => esc_html__( 'Turn excerpt on and off.', 'et_builder' ),
+				'type'             => 'yes_no_button',
+				'options'          => array(
+					'on'  => esc_html__( 'Yes', 'et_builder' ),
+					'off' => esc_html__( 'No', 'et_builder' ),
+				),
+				'default_on_front' => 'on',
+				'computed_affects' => array(
+					'__posts',
+				),
+				'depends_show_if'  => 'off',
+				'toggle_slug'      => 'elements',
+				'option_category'  => 'configuration',
+				'mobile_options'   => true,
+				'hover'            => 'tabs',
 			),
 			'show_pagination' => array(
 				'label'             => esc_html__( 'Show Pagination', 'et_builder' ),
@@ -372,16 +503,20 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 					'__posts',
 				),
 				'toggle_slug'        => 'elements',
+				'default_on_front'   => 'on',
+				'mobile_options'    => true,
+				'hover'             => 'tabs',
 			),
 			'offset_number' => array(
-				'label'            => esc_html__( 'Offset Number', 'et_builder' ),
+				'label'            => esc_html__( 'Post Offset Number', 'et_builder' ),
 				'type'             => 'text',
 				'option_category'  => 'configuration',
-				'description'      => esc_html__( 'Choose how many posts you would like to offset by', 'et_builder' ),
+				'description'      => esc_html__( 'Choose how many posts you would like to skip. These posts will not be shown in the feed.', 'et_builder' ),
 				'toggle_slug'      => 'main_content',
 				'computed_affects' => array(
 					'__posts',
 				),
+				'default'          => 0,
 			),
 			'use_overlay' => array(
 				'label'             => esc_html__( 'Featured Image Overlay', 'et_builder' ),
@@ -402,6 +537,7 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 				),
 				'tab_slug'          => 'advanced',
 				'toggle_slug'       => 'overlay',
+				'default_on_front'  => 'off',
 			),
 			'overlay_icon_color' => array(
 				'label'             => esc_html__( 'Overlay Icon Color', 'et_builder' ),
@@ -411,23 +547,23 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 				'tab_slug'          => 'advanced',
 				'toggle_slug'       => 'overlay',
 				'description'       => esc_html__( 'Here you can define a custom color for the overlay icon', 'et_builder' ),
+				'mobile_options'    => true,
 			),
 			'hover_overlay_color' => array(
-				'label'             => esc_html__( 'Hover Overlay Color', 'et_builder' ),
+				'label'             => esc_html__( 'Overlay Background Color', 'et_builder' ),
 				'type'              => 'color-alpha',
 				'custom_color'      => true,
 				'depends_show_if'   => 'on',
 				'tab_slug'          => 'advanced',
 				'toggle_slug'       => 'overlay',
 				'description'       => esc_html__( 'Here you can define a custom color for the overlay', 'et_builder' ),
+				'mobile_options'    => true,
 			),
 			'hover_icon' => array(
-				'label'               => esc_html__( 'Hover Icon Picker', 'et_builder' ),
-				'type'                => 'text',
+				'label'               => esc_html__( 'Overlay Icon', 'et_builder' ),
+				'type'                => 'select_icon',
 				'option_category'     => 'configuration',
 				'class'               => array( 'et-pb-font-icon' ),
-				'renderer'            => 'et_pb_get_font_icon_list',
-				'renderer_with_field' => true,
 				'depends_show_if'     => 'on',
 				'description'         => esc_html__( 'Here you can define a custom icon for the overlay', 'et_builder' ),
 				'tab_slug'            => 'advanced',
@@ -435,19 +571,7 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 				'computed_affects'    => array(
 					'__posts',
 				),
-			),
-			'background_layout' => array(
-				'label'       => esc_html__( 'Text Color', 'et_builder' ),
-				'type'        => 'select',
-				'option_category' => 'color_option',
-				'options'           => array(
-					'light' => esc_html__( 'Dark', 'et_builder' ),
-					'dark'  => esc_html__( 'Light', 'et_builder' ),
-				),
-				'depends_default' => true,
-				'tab_slug'        => 'advanced',
-				'toggle_slug'     => 'text',
-				'description'     => esc_html__( 'Here you can choose whether your text should be light or dark. If you are working with a dark background, then your text should be light. If your background is light, then your text should be set to dark.', 'et_builder' ),
+				'mobile_options'      => true,
 			),
 			'masonry_tile_background_color' => array(
 				'label'             => esc_html__( 'Grid Tile Background Color', 'et_builder' ),
@@ -455,45 +579,11 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 				'custom_color'      => true,
 				'toggle_slug'       => 'background',
 				'depends_show_if'   => 'off',
-				'depends_to'        => array(
+				'depends_on'        => array(
 					'fullwidth',
 				),
-			),
-			'disabled_on' => array(
-				'label'           => esc_html__( 'Disable on', 'et_builder' ),
-				'type'            => 'multiple_checkboxes',
-				'options'         => array(
-					'phone'   => esc_html__( 'Phone', 'et_builder' ),
-					'tablet'  => esc_html__( 'Tablet', 'et_builder' ),
-					'desktop' => esc_html__( 'Desktop', 'et_builder' ),
-				),
-				'additional_att'  => 'disable_on',
-				'option_category' => 'configuration',
-				'description'     => esc_html__( 'This will disable the module on selected devices', 'et_builder' ),
-				'tab_slug'        => 'custom_css',
-				'toggle_slug'     => 'visibility',
-			),
-			'admin_label' => array(
-				'label'       => esc_html__( 'Admin Label', 'et_builder' ),
-				'type'        => 'text',
-				'description' => esc_html__( 'This will change the label of the module in the builder for easy identification.', 'et_builder' ),
-				'toggle_slug' => 'admin_label',
-			),
-			'module_id' => array(
-				'label'           => esc_html__( 'CSS ID', 'et_builder' ),
-				'type'            => 'text',
-				'option_category' => 'configuration',
-				'tab_slug'        => 'custom_css',
-				'toggle_slug'     => 'classes',
-				'option_class'    => 'et_pb_custom_css_regular',
-			),
-			'module_class' => array(
-				'label'           => esc_html__( 'CSS Class', 'et_builder' ),
-				'type'            => 'text',
-				'option_category' => 'configuration',
-				'tab_slug'        => 'custom_css',
-				'toggle_slug'     => 'classes',
-				'option_class'    => 'et_pb_custom_css_regular',
+				'hover'             => 'tabs',
+				'mobile_options'    => true,
 			),
 			'__posts' => array(
 				'type' => 'computed',
@@ -510,15 +600,17 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 					'show_date',
 					'show_categories',
 					'show_comments',
+					'show_excerpt',
+					'use_manual_excerpt',
+					'excerpt_length',
 					'show_pagination',
 					'offset_number',
 					'use_overlay',
 					'hover_icon',
+					'hover_icon_tablet',
+					'hover_icon_phone',
 					'header_level',
 					'__page',
-				),
-				'computed_minimum' => array(
-					'posts_number',
 				),
 			),
 			'__page'          => array(
@@ -529,6 +621,28 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 				),
 			),
 		);
+		return $fields;
+	}
+
+	public function get_transition_fields_css_props() {
+		$fields = parent::get_transition_fields_css_props();
+
+		$fields['background_layout'] = array(
+			'color' => implode( ', ',
+				array(
+					'%%order_class%% .entry-title',
+					'%%order_class%% .post-meta',
+					'%%order_class%% .post-content'
+				)
+			)
+		);
+		$fields['border_radii']            = array( 'border-radius' => self::$_->array_get( $this->advanced_fields, 'borders.default.css.main.border_radii' ) );
+		$fields['border_styles']           = array( 'border' => self::$_->array_get( $this->advanced_fields, 'borders.default.css.main.border_styles' ) );
+		$fields['border_radii_fullwidth']  = array( 'border-radius' => self::$_->array_get( $this->advanced_fields, 'borders.fullwidth.css.main.border_radii' ) );
+		$fields['border_styles_fullwidth'] = array( 'border' => self::$_->array_get( $this->advanced_fields, 'borders.fullwidth.css.main.border_styles' ) );
+		$fields['max_width']               = array( 'max-width' => '%%order_class%%' );
+		$fields['width']                   = array( 'width' => '%%order_class%%' );
+
 		return $fields;
 	}
 
@@ -556,6 +670,9 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 			'show_date'                     => '',
 			'show_categories'               => '',
 			'show_comments'                 => '',
+			'show_excerpt'                  => '',
+			'use_manual_excerpt'            => '',
+			'excerpt_length'                => '',
 			'show_pagination'               => '',
 			'background_layout'             => '',
 			'show_more'                     => '',
@@ -564,6 +681,8 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 			'overlay_icon_color'            => '',
 			'hover_overlay_color'           => '',
 			'hover_icon'                    => '',
+			'hover_icon_tablet'             => '',
+			'hover_icon_phone'              => '',
 			'use_overlay'                   => '',
 			'header_level'                  => 'h2',
 		);
@@ -575,6 +694,7 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 		$is_search                   = et_fb_conditional_tag( 'is_search', $conditional_tags );
 		$is_single                   = et_fb_conditional_tag( 'is_single', $conditional_tags );
 		$et_is_builder_plugin_active = et_fb_conditional_tag( 'et_is_builder_plugin_active', $conditional_tags );
+		$post_id                     = isset( $current_page['id'] ) ? (int) $current_page['id'] : 0;
 
 		$container_is_closed = false;
 
@@ -586,23 +706,16 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 		$args = wp_parse_args( $args, $defaults );
 
 		$processed_header_level = et_pb_process_header_level( $args['header_level'], 'h2' );
+		$processed_header_level = esc_html( $processed_header_level );
 
 		$overlay_output = '';
-		$hover_icon = '';
 
 		if ( 'on' === $args['use_overlay'] ) {
-			$data_icon = '' !== $args['hover_icon']
-				? sprintf(
-					' data-icon="%1$s"',
-					esc_attr( et_pb_process_font_icon( $args['hover_icon'] ) )
-				)
-				: '';
-
-			$overlay_output = sprintf(
-				'<span class="et_overlay%1$s"%2$s></span>',
-				( '' !== $args['hover_icon'] ? ' et_pb_inline_icon' : '' ),
-				$data_icon
-			);
+			$overlay_output = ET_Builder_Module_Helper_Overlay::render( array(
+				'icon'        => $args['hover_icon'],
+				'icon_tablet' => $args['hover_icon_tablet'],
+				'icon_phone'  => $args['hover_icon_phone'],
+			) );
 		}
 
 		$overlay_class = 'on' === $args['use_overlay'] ? ' et_pb_has_overlay' : '';
@@ -613,18 +726,18 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 		);
 
 		if ( defined( 'DOING_AJAX' ) && isset( $current_page['paged'] ) ) {
-			$paged = intval( $current_page['paged'] );
+			$paged = intval( $current_page['paged'] ); //phpcs:ignore WordPress.Variables.GlobalVariables.OverrideProhibited
 		} else {
-			$paged = $is_front_page ? get_query_var( 'page' ) : get_query_var( 'paged' );
+			$paged = $is_front_page ? get_query_var( 'page' ) : get_query_var( 'paged' ); //phpcs:ignore WordPress.Variables.GlobalVariables.OverrideProhibited
 		}
 
 		// support pagination in VB
 		if ( isset( $args['__page'] ) ) {
-			$paged = $args['__page'];
+			$paged = $args['__page']; //phpcs:ignore WordPress.Variables.GlobalVariables.OverrideProhibited
 		}
 
 		if ( '' !== $args['include_categories'] ) {
-			$query_args['cat'] = $args['include_categories'];
+			$query_args['cat'] = implode( ',', self::filter_meta_categories( $args['include_categories'], $post_id ) );
 		}
 
 		if ( ! $is_search ) {
@@ -654,7 +767,7 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 		$wp_query_page = $wp_query;
 
 		// Turn page's $wp_query into this module's query
-		$wp_query = $query;
+		$wp_query = $query; //phpcs:ignore WordPress.Variables.GlobalVariables.OverrideProhibited
 
 		ob_start();
 
@@ -682,6 +795,7 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 				$thumbnail      = get_thumbnail( $width, $height, $classtext, $titletext, $titletext, false, 'Blogimage' );
 				$thumb          = $thumbnail["thumb"];
 				$no_thumb_class = '' === $thumb || 'off' === $args['show_thumbnail'] ? ' et_pb_no_thumb' : '';
+				$excerpt_length = '' !== $args['excerpt_length'] ? intval( $args['excerpt_length'] ) : 270;
 
 				$post_format = et_pb_post_format();
 				if ( in_array( $post_format, array( 'video', 'gallery' ) ) ) {
@@ -702,7 +816,7 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 												<a href="#" class="et_pb_video_play"></a>
 											</div>
 										</div>',
-										$thumb
+										et_core_esc_previously( $thumb )
 									) : '';
 
 									printf(
@@ -710,8 +824,8 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 											%1$s
 											%2$s
 										</div>',
-										$video_overlay,
-										$first_video
+										et_core_esc_previously( $video_overlay ),
+										et_core_esc_previously( $first_video )
 									);
 								elseif ( 'gallery' === $post_format ) :
 									et_pb_gallery_images( 'slider' );
@@ -720,7 +834,7 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 										<a href="<?php esc_url( the_permalink() ); ?>" class="entry-featured-image-url">
 											<?php print_thumbnail( $thumb, $thumbnail["use_timthumb"], $titletext, $width, $height ); ?>
 											<?php if ( 'on' === $args['use_overlay'] ) {
-												echo $overlay_output;
+												echo et_core_esc_previously( $overlay_output );
 											} ?>
 										</a>
 								<?php
@@ -731,47 +845,47 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 
 						<?php if ( 'off' === $args['fullwidth'] || ! in_array( $post_format, array( 'link', 'audio', 'quote' ) ) ) { ?>
 							<?php if ( ! in_array( $post_format, array( 'link', 'audio' ) ) ) { ?>
-								<<?php echo $processed_header_level; ?> class="entry-title"><a href="<?php esc_url( the_permalink() ); ?>"><?php the_title(); ?></a></<?php echo $processed_header_level; ?>>
+								<<?php echo et_core_esc_previously( $processed_header_level ); ?> class="entry-title"><a href="<?php esc_url( the_permalink() ); ?>"><?php the_title(); ?></a></<?php echo et_core_esc_previously( $processed_header_level ); ?>>
 							<?php } ?>
 
 							<?php
 								if ( 'on' === $args['show_author'] || 'on' === $args['show_date'] || 'on' === $args['show_categories'] || 'on' === $args['show_comments'] ) {
+									$author = 'on' === $args['show_author']
+										? et_get_safe_localization( sprintf( __( 'by %s', 'et_builder' ), '<span class="author vcard">' .  et_pb_get_the_author_posts_link() . '</span>' ) )
+										: '';
+
+									$author_separator = 'on' === $args['show_author'] && 'on' === $args['show_date']
+										? ' | '
+										: '';
+
+									$date = 'on' === $args['show_date']
+										? et_get_safe_localization( sprintf( __( '%s', 'et_builder' ), '<span class="published">' . esc_html( get_the_date( $args['meta_date'] ) ) . '</span>' ) )
+										: '';
+
+									$date_separator = (( 'on' === $args['show_author'] || 'on' === $args['show_date'] ) && 'on' === $args['show_categories'] )
+										? ' | '
+										: '';
+
+									$categories = 'on' === $args['show_categories']
+										? get_the_category_list(', ')
+										: '';
+
+									$categories_separator = (( 'on' === $args['show_author'] || 'on' === $args['show_date'] || 'on' === $args['show_categories'] ) && 'on' === $args['show_comments'])
+										? ' | '
+										: '';
+
+									$comments = 'on' === $args['show_comments']
+										? et_core_maybe_convert_to_utf_8( sprintf( esc_html( _nx( '%s Comment', '%s Comments', get_comments_number(), 'number of comments', 'et_builder' ) ), number_format_i18n( get_comments_number() ) ) )
+										: '';
+
 									printf( '<p class="post-meta">%1$s %2$s %3$s %4$s %5$s %6$s %7$s</p>',
-										(
-											'on' === $args['show_author']
-												? et_get_safe_localization( sprintf( __( 'by %s', 'et_builder' ), '<span class="author vcard">' .  et_pb_get_the_author_posts_link() . '</span>' ) )
-												: ''
-										),
-										(
-											( 'on' === $args['show_author'] && 'on' === $args['show_date'] )
-												? ' | '
-												: ''
-										),
-										(
-											'on' === $args['show_date']
-												? et_get_safe_localization( sprintf( __( '%s', 'et_builder' ), '<span class="published">' . esc_html( get_the_date( $args['meta_date'] ) ) . '</span>' ) )
-												: ''
-										),
-										(
-											(( 'on' === $args['show_author'] || 'on' === $args['show_date'] ) && 'on' === $args['show_categories'] )
-												? ' | '
-												: ''
-										),
-										(
-											'on' === $args['show_categories']
-												? get_the_category_list(', ')
-												: ''
-										),
-										(
-											(( 'on' === $args['show_author'] || 'on' === $args['show_date'] || 'on' === $args['show_categories'] ) && 'on' === $args['show_comments'])
-												? ' | '
-												: ''
-										),
-										(
-											'on' === $args['show_comments']
-												? sprintf( esc_html( _nx( '%s Comment', '%s Comments', get_comments_number(), 'number of comments', 'et_builder' ) ), number_format_i18n( get_comments_number() ) )
-												: ''
-										)
+										et_core_esc_previously( $author ),
+										et_core_intentionally_unescaped( $author_separator, 'fixed_string' ),
+										et_core_esc_previously( $date ),
+										et_core_intentionally_unescaped( $date_separator, 'fixed_string' ),
+										et_core_esc_wp( $categories ),
+										et_core_intentionally_unescaped( $categories_separator, 'fixed_string' ),
+										et_core_esc_previously( $comments )
 									);
 								}
 
@@ -791,22 +905,22 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 
 									// page builder doesn't support more tag, so display the_content() in case of post made with page builder
 									if ( et_pb_is_pagebuilder_used( get_the_ID() ) ) {
-										$more = 1;
+										$more = 1; // phpcs:ignore WordPress.Variables.GlobalVariables.OverrideProhibited
 
-										echo apply_filters( 'the_content', $post_content );
+										echo et_core_intentionally_unescaped( apply_filters( 'the_content', $post_content ), 'html' );
 
 									} else {
-										$more = null;
-										echo apply_filters( 'the_content', et_delete_post_first_video( get_the_content( esc_html__( 'read more...', 'et_builder' ) ) ) );
+										$more = null; // phpcs:ignore WordPress.Variables.GlobalVariables.OverrideProhibited
+										echo et_core_intentionally_unescaped( apply_filters( 'the_content', et_delete_post_first_video( get_the_content( esc_html__( 'read more...', 'et_builder' ) ) ) ), 'html' );
 									}
-								} else {
-									if ( has_excerpt() ) {
+								} elseif ( 'on' === $args['show_excerpt'] ) {
+									if ( has_excerpt() && 'off' !== $args['use_manual_excerpt'] ) {
 										the_excerpt();
 									} else {
 										if ( '' !== $post_content ) {
 											// set the $et_fb_processing_shortcode_object to false, to retrieve the content inside truncate_post() correctly
 											$et_fb_processing_shortcode_object = false;
-											echo wpautop( et_delete_post_first_video( strip_shortcodes( truncate_post( 270, false, '', true ) ) ) );
+											echo et_core_intentionally_unescaped( wpautop( et_delete_post_first_video( strip_shortcodes( truncate_post( $excerpt_length, false, '', true ) ) ) ), 'html' );
 											// reset the $et_fb_processing_shortcode_object to its original value
 											$et_fb_processing_shortcode_object = $global_processing_original_value;
 										} else {
@@ -827,16 +941,16 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 										'<style type="text/css" class="et_fb_blog_inner_content_styles">
 											%1$s
 										</style>',
-										$internal_style
+										et_core_esc_previously( $internal_style )
 									);
 								}
 
-								echo '</div>';
-
 								if ( 'on' !== $args['show_content'] ) {
-									$more = 'on' == $args['show_more'] ? sprintf( ' <a href="%1$s" class="more-link" >%2$s</a>' , esc_url( get_permalink() ), esc_html__( 'read more', 'et_builder' ) )  : '';
-									echo $more;
+									$more = 'on' === $args['show_more'] ? sprintf( ' <a href="%1$s" class="more-link" >%2$s</a>' , esc_url( get_permalink() ), esc_html__( 'read more', 'et_builder' ) )  : ''; //phpcs:ignore WordPress.Variables.GlobalVariables.OverrideProhibited
+									echo et_core_esc_previously( $more );
 								}
+
+								echo '</div>';
 								?>
 						<?php } // 'off' === $fullwidth || ! in_array( $post_format, array( 'link', 'audio', 'quote', 'gallery' ?>
 					</article>
@@ -873,7 +987,7 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 		wp_reset_postdata();
 
 		// Reset $wp_query to its origin
-		$wp_query = $wp_query_page;
+		$wp_query = $wp_query_page; // phpcs:ignore WordPress.Variables.GlobalVariables.OverrideProhibited
 
 		if ( ! $posts = ob_get_clean() ) {
 			$posts = self::get_no_results_template();
@@ -882,7 +996,39 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 		return $posts;
 	}
 
-	function shortcode_callback( $atts, $content = null, $function_name ) {
+	/**
+	 * Render pagination element
+	 *
+	 * @since 3.27.1
+	 *
+	 * @param bool $echo Wether to print the output or return it.
+	 *
+	 * @return (void|string)
+	 */
+	function render_pagination( $echo = true ){
+		if ( ! $echo ) {
+			ob_start();
+		}
+
+		if ( function_exists( 'wp_pagenavi' ) ) {
+			wp_pagenavi();
+		} else {
+			if ( et_is_builder_plugin_active() ) {
+				include( ET_BUILDER_PLUGIN_DIR . 'includes/navigation.php' );
+			} else {
+				get_template_part( 'includes/navigation', 'index' );
+			}
+		}
+
+		if ( ! $echo ) {
+			$output = ob_get_contents();
+			ob_end_clean();
+
+			return $output;
+		}
+	}
+
+	function render( $attrs, $content = null, $render_slug ) {
 		global $post;
 
 		// Stored current global post as variable so global $post variable can be restored
@@ -898,32 +1044,44 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 		global $wp_filter;
 		$wp_filter_cache = $wp_filter;
 
-		$module_id           = $this->shortcode_atts['module_id'];
-		$module_class        = $this->shortcode_atts['module_class'];
-		$fullwidth           = $this->shortcode_atts['fullwidth'];
-		$posts_number        = $this->shortcode_atts['posts_number'];
-		$include_categories  = $this->shortcode_atts['include_categories'];
-		$meta_date           = $this->shortcode_atts['meta_date'];
-		$show_thumbnail      = $this->shortcode_atts['show_thumbnail'];
-		$show_content        = $this->shortcode_atts['show_content'];
-		$show_author         = $this->shortcode_atts['show_author'];
-		$show_date           = $this->shortcode_atts['show_date'];
-		$show_categories     = $this->shortcode_atts['show_categories'];
-		$show_comments       = $this->shortcode_atts['show_comments'];
-		$show_pagination     = $this->shortcode_atts['show_pagination'];
-		$background_layout   = $this->shortcode_atts['background_layout'];
-		$show_more           = $this->shortcode_atts['show_more'];
-		$offset_number       = $this->shortcode_atts['offset_number'];
-		$masonry_tile_background_color = $this->shortcode_atts['masonry_tile_background_color'];
-		$overlay_icon_color  = $this->shortcode_atts['overlay_icon_color'];
-		$hover_overlay_color = $this->shortcode_atts['hover_overlay_color'];
-		$hover_icon          = $this->shortcode_atts['hover_icon'];
-		$use_overlay         = $this->shortcode_atts['use_overlay'];
-		$header_level        = $this->shortcode_atts['header_level'];
+		$multi_view                          = et_pb_multi_view_options( $this );
+		$fullwidth                           = $this->props['fullwidth'];
+		$posts_number                        = $this->props['posts_number'];
+		$include_categories                  = $this->props['include_categories'];
+		$meta_date                           = $this->props['meta_date'];
+		$show_thumbnail                      = $this->props['show_thumbnail'];
+		$show_content                        = $this->props['show_content'];
+		$show_author                         = $this->props['show_author'];
+		$show_date                           = $this->props['show_date'];
+		$show_categories                     = $this->props['show_categories'];
+		$show_comments                       = $this->props['show_comments'];
+		$show_excerpt                        = $this->props['show_excerpt'];
+		$use_manual_excerpt                  = $this->props['use_manual_excerpt'];
+		$excerpt_length                      = $this->props['excerpt_length'];
+		$show_pagination                     = $this->props['show_pagination'];
+		$show_more                           = $this->props['show_more'];
+		$offset_number                       = $this->props['offset_number'];
+		$use_overlay                         = $this->props['use_overlay'];
+		$header_level                        = $this->props['header_level'];
+		$masonry_tile_background_color_value = et_pb_responsive_options()->get_property_values( $this->props, 'masonry_tile_background_color' );
+		$masonry_tile_background_color_hover = $this->get_hover_value( 'masonry_tile_background_color' );
+		$overlay_icon_color_values           = et_pb_responsive_options()->get_property_values( $this->props, 'overlay_icon_color' );
+		$hover_overlay_color_values          = et_pb_responsive_options()->get_property_values( $this->props, 'hover_overlay_color' );
+
+		$background_layout                   = $this->props['background_layout'];
+		$background_layout_hover             = et_pb_hover_options()->get_value( 'background_layout', $this->props, 'light' );
+		$background_layout_hover_enabled     = et_pb_hover_options()->is_enabled( 'background_layout', $this->props );
+		$background_layout_values            = et_pb_responsive_options()->get_property_values( $this->props, 'background_layout' );
+		$background_layout_tablet            = isset( $background_layout_values['tablet'] ) ? $background_layout_values['tablet'] : '';
+		$background_layout_phone             = isset( $background_layout_values['phone'] ) ? $background_layout_values['phone'] : '';
+
+		$hover_icon                          = $this->props['hover_icon'];
+		$hover_icon_values                   = et_pb_responsive_options()->get_property_values( $this->props, 'hover_icon' );
+		$hover_icon_tablet                   = isset( $hover_icon_values['tablet'] ) ? $hover_icon_values['tablet'] : '';
+		$hover_icon_phone                    = isset( $hover_icon_values['phone'] ) ? $hover_icon_values['phone'] : '';
 
 		global $paged;
 
-		$module_class              = ET_Builder_Element::add_module_order_class( $module_class, $function_name );
 		$video_background          = $this->video_background();
 		$parallax_image_background = $this->get_parallax_image_background();
 
@@ -946,49 +1104,33 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 		remove_all_filters( 'wp_audio_shortcode' );
 		remove_all_filters( 'wp_audio_shortcode_class' );
 
-		if ( '' !== $masonry_tile_background_color ) {
-			ET_Builder_Element::set_style( $function_name, array(
-				'selector'    => '%%order_class%% .et_pb_blog_grid .et_pb_post',
+		// Masonry Tile Background color.
+		et_pb_responsive_options()->generate_responsive_css( $masonry_tile_background_color_value, '%%order_class%% .et_pb_blog_grid .et_pb_post', 'background-color', $render_slug, '', 'color' );
+
+		if ( et_builder_is_hover_enabled( 'masonry_tile_background_color', $this->props ) ) {
+			ET_Builder_Element::set_style( $render_slug, array(
+				'selector'    => '%%order_class%%:hover .et_pb_blog_grid .et_pb_post',
 				'declaration' => sprintf(
 					'background-color: %1$s;',
-					esc_html( $masonry_tile_background_color )
+					esc_html( $masonry_tile_background_color_hover )
 				),
 			) );
 		}
 
-		if ( '' !== $overlay_icon_color ) {
-			ET_Builder_Element::set_style( $function_name, array(
-				'selector'    => '%%order_class%% .et_overlay:before',
-				'declaration' => sprintf(
-					'color: %1$s !important;',
-					esc_html( $overlay_icon_color )
-				),
-			) );
-		}
+		// Overlay Icon Color.
+		et_pb_responsive_options()->generate_responsive_css( $overlay_icon_color_values, '%%order_class%% .et_overlay:before', 'color', $render_slug, '', 'color' );
 
-		if ( '' !== $hover_overlay_color ) {
-			ET_Builder_Element::set_style( $function_name, array(
-				'selector'    => '%%order_class%% .et_overlay',
-				'declaration' => sprintf(
-					'background-color: %1$s;',
-					esc_html( $hover_overlay_color )
-				),
-			) );
-		}
+		// Hover Overlay Color.
+		et_pb_responsive_options()->generate_responsive_css( $hover_overlay_color_values, '%%order_class%% .et_overlay', 'background-color', $render_slug, '', 'color' );
+
+		$overlay_output = '';
 
 		if ( 'on' === $use_overlay ) {
-			$data_icon = '' !== $hover_icon
-				? sprintf(
-					' data-icon="%1$s"',
-					esc_attr( et_pb_process_font_icon( $hover_icon ) )
-				)
-				: '';
-
-			$overlay_output = sprintf(
-				'<span class="et_overlay%1$s"%2$s></span>',
-				( '' !== $hover_icon ? ' et_pb_inline_icon' : '' ),
-				$data_icon
-			);
+			$overlay_output = ET_Builder_Module_Helper_Overlay::render( array(
+				'icon'        => $hover_icon,
+				'icon_tablet' => $hover_icon_tablet,
+				'icon_phone'  => $hover_icon_phone,
+			) );
 		}
 
 		$overlay_class = 'on' === $use_overlay ? ' et_pb_has_overlay' : '';
@@ -996,7 +1138,9 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 		if ( 'on' !== $fullwidth ){
 			wp_enqueue_script( 'salvattore' );
 
-			$background_layout = 'light';
+			$background_layout        = 'light';
+			$background_layout_tablet = ! empty( $background_layout_tablet ) ? 'light' : '';
+			$background_layout_phone  = ! empty( $background_layout_phone ) ? 'light' : '';
 		}
 
 		$args = array( 'posts_per_page' => (int) $posts_number );
@@ -1004,11 +1148,11 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 		$et_paged = is_front_page() ? get_query_var( 'page' ) : get_query_var( 'paged' );
 
 		if ( is_front_page() ) {
-			$paged = $et_paged;
+			$paged = $et_paged; //phpcs:ignore WordPress.Variables.GlobalVariables.OverrideProhibited
 		}
 
 		if ( '' !== $include_categories ) {
-			$args['cat'] = $include_categories;
+			$args['cat'] = implode( ',', self::filter_meta_categories( $include_categories, $this->get_the_ID() ) );
 		}
 
 		if ( ! is_search() ) {
@@ -1032,13 +1176,52 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 		}
 
 		// Images: Add CSS Filters and Mix Blend Mode rules (if set)
-		if ( array_key_exists( 'image', $this->advanced_options ) && array_key_exists( 'css', $this->advanced_options['image'] ) ) {
-			$module_class .= $this->generate_css_filters(
-				$function_name,
+		if ( array_key_exists( 'image', $this->advanced_fields ) && array_key_exists( 'css', $this->advanced_fields['image'] ) ) {
+			$this->add_classname( $this->generate_css_filters(
+				$render_slug,
 				'child_',
-				self::$data_utils->array_get( $this->advanced_options['image']['css'], 'main', '%%order_class%%' )
-			);
+				self::$data_utils->array_get( $this->advanced_fields['image']['css'], 'main', '%%order_class%%' )
+			) );
 		}
+
+		$post_meta_remove_keys = array(
+			'show_author',
+			'show_date',
+			'show_categories',
+			'show_comments',
+		);
+
+		$post_meta_removes = array(
+			'desktop' => array(
+				'none' => 'none',
+			),
+			'tablet'  => array(
+				'none' => 'none',
+			),
+			'phone'   => array(
+				'none' => 'none',
+			),
+			'hover'   => array(
+				'none' => 'none',
+			),
+		);
+
+		foreach ( $post_meta_removes as $mode => $post_meta_remove ) {
+			foreach ( $post_meta_remove_keys as $post_meta_remove_key ) {
+				if ( $multi_view->has_value( $post_meta_remove_key, 'on', $mode, true ) ) {
+					continue;
+				}
+
+				$post_meta_remove[ $post_meta_remove_key ] = $post_meta_remove_key;
+			}
+
+			$post_meta_removes[ $mode ] = implode( ',', $post_meta_remove );
+		}
+
+		$multi_view->set_custom_prop( 'post_meta_removes', $post_meta_removes );
+		$multi_view->set_custom_prop( 'post_content', $multi_view->get_values( 'show_content' ) );
+
+		$show_thumbnail = $multi_view->has_value( 'show_thumbnail', 'on' );
 
 		ob_start();
 
@@ -1068,7 +1251,7 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 				$thumbnail = get_thumbnail( $width, $height, $classtext, $titletext, $titletext, false, 'Blogimage' );
 				$thumb = $thumbnail['thumb'];
 
-				$no_thumb_class = '' === $thumb || 'off' === $show_thumbnail ? ' et_pb_no_thumb' : '';
+				$no_thumb_class = '' === $thumb || ! $show_thumbnail ? ' et_pb_no_thumb' : '';
 
 				if ( in_array( $post_format, array( 'video', 'gallery' ) ) ) {
 					$no_thumb_class = '';
@@ -1096,133 +1279,136 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 								%1$s
 								%2$s
 							</div>',
-							$video_overlay,
-							$first_video
+							et_core_esc_previously( $video_overlay ),
+							et_core_esc_previously( $first_video )
 						);
 					elseif ( 'gallery' === $post_format ) :
 						et_pb_gallery_images( 'slider' );
-					elseif ( '' !== $thumb && 'on' === $show_thumbnail ) :
+					elseif ( '' !== $thumb && $show_thumbnail ) :
 						if ( 'on' !== $fullwidth ) {
 							echo '<div class="et_pb_image_container">';
 						}
-						?>
-							<a href="<?php esc_url( the_permalink() ); ?>" class="entry-featured-image-url">
-								<?php print_thumbnail( $thumb, $thumbnail["use_timthumb"], $titletext, $width, $height ); ?>
-								<?php if ( 'on' === $use_overlay ) {
-									echo $overlay_output;
-								} ?>
-							</a>
-					<?php
-						if ( 'on' !== $fullwidth ) echo '</div> <!-- .et_pb_image_container -->';
+
+						$thumbnail_output = print_thumbnail( $thumb, $thumbnail["use_timthumb"], $titletext, $width, $height, '', false );
+
+						if ( 'on' === $use_overlay ) {
+							$thumbnail_output .= et_core_esc_previously( $overlay_output );
+						}
+
+						if ( $thumbnail_output ) {
+							$multi_view->render_element( array(
+								'tag'        => 'a',
+								'content'    => $thumbnail_output,
+								'attrs'      => array(
+									'href'  => get_the_permalink(),
+									'class' => 'entry-featured-image-url',
+								),
+								'visibility' => array(
+									'show_thumbnail' => 'on',
+								),
+								'required'   => array(
+									'show_thumbnail' => 'on',
+								),
+							), true );
+						}
+
+						if ( 'on' !== $fullwidth ) {
+							echo '</div> <!-- .et_pb_image_container -->';
+						}
 					endif;
 				} ?>
 
 			<?php if ( 'off' === $fullwidth || ! in_array( $post_format, array( 'link', 'audio', 'quote' ) ) || post_password_required( $post ) ) { ?>
 				<?php if ( ! in_array( $post_format, array( 'link', 'audio' ) ) || post_password_required( $post ) ) { ?>
-					<<?php echo $processed_header_level; ?> class="entry-title"><a href="<?php esc_url( the_permalink() ); ?>"><?php the_title(); ?></a></<?php echo $processed_header_level; ?>>
+					<<?php echo et_core_intentionally_unescaped( $processed_header_level, 'fixed_string' ); ?> class="entry-title"><a href="<?php esc_url( the_permalink() ); ?>"><?php the_title(); ?></a></<?php echo et_core_intentionally_unescaped( $processed_header_level, 'fixed_string' ); ?>>
 				<?php } ?>
 
 				<?php
-					if ( 'on' === $show_author || 'on' === $show_date || 'on' === $show_categories || 'on' === $show_comments ) {
-						printf( '<p class="post-meta">%1$s %2$s %3$s %4$s %5$s %6$s %7$s</p>',
-							(
-								'on' === $show_author
-									? et_get_safe_localization( sprintf( __( 'by %s', 'et_builder' ), '<span class="author vcard">' .  et_pb_get_the_author_posts_link() . '</span>' ) )
-									: ''
+					$multi_view->render_element(
+						array(
+							'tag'     => 'p',
+							'content' => '{{post_meta_removes}}',
+							'attrs'   => array(
+								'class' => 'post-meta',
 							),
-							(
-								( 'on' === $show_author && 'on' === $show_date )
-									? ' | '
-									: ''
-							),
-							(
-								'on' === $show_date
-									? et_get_safe_localization( sprintf( __( '%s', 'et_builder' ), '<span class="published">' . esc_html( get_the_date( $meta_date ) ) . '</span>' ) )
-									: ''
-							),
-							(
-								(( 'on' === $show_author || 'on' === $show_date ) && 'on' === $show_categories)
-									? ' | '
-									: ''
-							),
-							(
-								'on' === $show_categories
-									? get_the_category_list(', ')
-									: ''
-							),
-							(
-								(( 'on' === $show_author || 'on' === $show_date || 'on' === $show_categories ) && 'on' === $show_comments)
-									? ' | '
-									: ''
-							),
-							(
-								'on' === $show_comments
-									? sprintf( esc_html( _nx( '%s Comment', '%s Comments', get_comments_number(), 'number of comments', 'et_builder' ) ), number_format_i18n( get_comments_number() ) )
-									: ''
-							)
-						);
-					}
+						),
+						true
+					);
 
 					echo '<div class="post-content">';
 					global $et_pb_rendering_column_content;
 
-					$post_content = et_strip_shortcodes( et_delete_post_first_video( get_the_content() ), true );
-
 					$et_pb_rendering_column_content = true;
 
-					if ( 'on' === $show_content ) {
-						global $more;
-
-						// page builder doesn't support more tag, so display the_content() in case of post made with page builder
-						if ( et_pb_is_pagebuilder_used( get_the_ID() ) ) {
-							$more = 1;
-							echo apply_filters( 'the_content', $post_content );
-						} else {
-							$more = null;
-							echo apply_filters( 'the_content', et_delete_post_first_video( get_the_content( esc_html__( 'read more...', 'et_builder' ) ) ) );
-						}
+					global $more;
+					// page builder doesn't support more tag, so display the_content() in case of post made with page builder
+					if ( et_pb_is_pagebuilder_used( get_the_ID() ) ) {
+						$more = 1; // phpcs:ignore WordPress.Variables.GlobalVariables.OverrideProhibited
 					} else {
-						if ( has_excerpt() ) {
-							the_excerpt();
-						} else {
-							echo wpautop( et_delete_post_first_video( strip_shortcodes( truncate_post( 270, false, '', true ) ) ) );
-						}
+						$more = null; // phpcs:ignore WordPress.Variables.GlobalVariables.OverrideProhibited
 					}
+
+					$multi_view->render_element(
+						array(
+							'tag'        => 'div',
+							'content'    => '{{post_content}}',
+							'attrs'      => array(
+								'class' => 'post-content-inner',
+							),
+							'visibility' => array(
+								'show_excerpt' => 'on',
+							),
+						),
+						true
+					);
 
 					$et_pb_rendering_column_content = false;
 
-					if ( 'on' !== $show_content ) {
-						$more = 'on' == $show_more ? sprintf( ' <a href="%1$s" class="more-link" >%2$s</a>' , esc_url( get_permalink() ), esc_html__( 'read more', 'et_builder' ) )  : '';
-						echo $more;
-					}
+					$multi_view->render_element(
+						array(
+							'tag'        => 'a',
+							'content'    => esc_html__( 'read more', 'et_builder' ),
+							'attrs'      => array(
+								'class' => 'more-link',
+								'href'  => esc_url( get_permalink() ),
+							),
+							'visibility' => array(
+								'show_content' => 'off',
+								'show_more'    => 'on',
+							),
+							'required'   => array(
+								'show_content' => 'off',
+								'show_more'    => 'on',
+							),
+						),
+						true
+					);
 
 					echo '</div>';
 					?>
 			<?php } // 'off' === $fullwidth || ! in_array( $post_format, array( 'link', 'audio', 'quote', 'gallery' ?>
 
 			</article> <!-- .et_pb_post -->
-	<?php
+			<?php
 			} // endwhile
 
 			if ( 'off' === $fullwidth ) {
- 				echo '</div><!-- .et_pb_salvattore_content -->';
- 			}
-
-			if ( 'on' === $show_pagination && ! is_search() ) {
-				if ( function_exists( 'wp_pagenavi' ) ) {
-					wp_pagenavi();
-				} else {
-					if ( et_is_builder_plugin_active() ) {
-						include( ET_BUILDER_PLUGIN_DIR . 'includes/navigation.php' );
-					} else {
-						get_template_part( 'includes/navigation', 'index' );
-					}
-				}
-
-				echo '</div> <!-- .et_pb_posts -->';
-
-				$container_is_closed = true;
+				echo '</div><!-- .et_pb_salvattore_content -->';
 			}
+
+			if ( $multi_view->has_value( 'show_pagination', 'on' ) && ! is_search() ) {
+				$multi_view->render_element( array(
+					'tag'        => 'div',
+					'content'    => $this->render_pagination( false ),
+					'visibility' => array(
+						'show_pagination' => 'on',
+					),
+				), true );
+
+			   echo '</div> <!-- .et_pb_posts -->';
+
+			   $container_is_closed = true;
+		   }
 		} else {
 			if ( et_is_builder_plugin_active() ) {
 				include( ET_BUILDER_PLUGIN_DIR . 'includes/no-results.php' );
@@ -1237,136 +1423,163 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 
 		ob_end_clean();
 
-		$class = " et_pb_bg_layout_{$background_layout}";
+		// Remove automatically added classnames
+		$this->remove_classname( array(
+			$render_slug,
+		) );
+
+		$data_background_layout       = '';
+		$data_background_layout_hover = '';
+
+		if ( $background_layout_hover_enabled ) {
+			$data_background_layout = sprintf(
+				' data-background-layout="%1$s"',
+				esc_attr( $background_layout )
+			);
+			$data_background_layout_hover = sprintf(
+				' data-background-layout-hover="%1$s"',
+				esc_attr( $background_layout_hover )
+			);
+		}
 
 		if ( 'on' !== $fullwidth ) {
+			// Module classname
+			$this->add_classname( array(
+				'et_pb_blog_grid_wrapper',
+			) );
+
+			// Remove auto-added classname for module wrapper because on grid mode these classnames
+			// are placed one level below module wrapper
+			$this->remove_classname( array(
+				'et_pb_section_video',
+				'et_pb_preload',
+				'et_pb_section_parallax',
+			) );
+
+			// Inner module wrapper classname
+			$inner_wrap_classname = array(
+				'et_pb_blog_grid',
+				'clearfix',
+				"et_pb_bg_layout_{$background_layout}",
+				$this->get_text_orientation_classname(),
+			);
+
+			if ( ! empty( $background_layout_tablet ) ) {
+				array_push( $inner_wrap_classname, "et_pb_bg_layout_{$background_layout_tablet}_tablet" );
+			}
+
+			if ( ! empty( $background_layout_phone ) ) {
+				array_push( $inner_wrap_classname, "et_pb_bg_layout_{$background_layout_phone}_phone" );
+			}
+
+			if ( '' !== $video_background ) {
+				$inner_wrap_classname[] = 'et_pb_section_video';
+				$inner_wrap_classname[] = 'et_pb_preload';
+			}
+
+			if ( '' !== $parallax_image_background ) {
+				$inner_wrap_classname[] = 'et_pb_section_parallax';
+			}
+
+			$multi_view_data_attr = $multi_view->render_attrs( array(
+				'classes' => array(
+					'et_pb_blog_show_content' => array(
+						'show_content' => 'on',
+					),
+				),
+			) ) ;
+
 			$output = sprintf(
-				'<div%5$s class="et_pb_module et_pb_blog_grid_wrapper%6$s">
-					<div class="%1$s%3$s%7$s%9$s%11$s">
-					%10$s
-					%8$s
-					<div class="et_pb_ajax_pagination_container">
+				'<div%4$s class="%5$s"%9$s%10$s>
+					<div class="%1$s">
+					%7$s
+					%6$s
+					<div class="et_pb_ajax_pagination_container"%11$s>
 						%2$s
 					</div>
-					%4$s %12$s
+					%3$s %8$s
 				</div>',
-				( 'on' === $fullwidth ? 'et_pb_posts' : 'et_pb_blog_grid clearfix' ),
+				esc_attr( implode( ' ', $inner_wrap_classname ) ),
 				$posts,
-				esc_attr( $class ),
 				( ! $container_is_closed ? '</div> <!-- .et_pb_posts -->' : '' ),
-				( '' !== $module_id ? sprintf( ' id="%1$s"', esc_attr( $module_id ) ) : '' ),
-				( '' !== $module_class ? sprintf( ' %1$s', esc_attr( $module_class ) ) : '' ),
-				'' !== $video_background ? ' et_pb_section_video et_pb_preload' : '',
+				$this->module_id(),
+				$this->module_classname( $render_slug ), // #5
 				$video_background,
-				'' !== $parallax_image_background ? ' et_pb_section_parallax' : '',
 				$parallax_image_background,
-				$this->get_text_orientation_classname(),
-				$this->drop_shadow_back_compatibility( $function_name )
+				$this->drop_shadow_back_compatibility( $render_slug ),
+				et_core_esc_previously( $data_background_layout ),
+				et_core_esc_previously( $data_background_layout_hover ), // #10
+				et_core_esc_previously( $multi_view_data_attr )
 			);
 		} else {
+			// Module classname
+			$this->add_classname( array(
+				'et_pb_posts',
+				"et_pb_bg_layout_{$background_layout}",
+				$this->get_text_orientation_classname(),
+			) );
+
+			if ( ! empty( $background_layout_tablet ) ) {
+				$this->add_classname( "et_pb_bg_layout_{$background_layout_tablet}_tablet" );
+			}
+
+			if ( ! empty( $background_layout_phone ) ) {
+				$this->add_classname( "et_pb_bg_layout_{$background_layout_phone}_phone" );
+			}
+
+			$multi_view_data_attr = $multi_view->render_attrs( array(
+				'classes' => array(
+					'et_pb_blog_show_content' => array(
+						'show_content' => 'on',
+					),
+				),
+			) ) ;
+
 			$output = sprintf(
-				'<div%5$s class="et_pb_module %1$s%3$s%6$s%7$s%9$s%11$s">
-				%10$s
-				%8$s
-				<div class="et_pb_ajax_pagination_container">
+				'<div%4$s class="%1$s"%8$s%9$s>
+				%6$s
+				%5$s
+				<div class="et_pb_ajax_pagination_container"%10$s>
 					%2$s
 				</div>
-				%4$s %12$s',
-				( 'on' === $fullwidth ? 'et_pb_posts' : 'et_pb_blog_grid clearfix' ),
+				%3$s %7$s',
+				$this->module_classname( $render_slug ),
 				$posts,
-				esc_attr( $class ),
 				( ! $container_is_closed ? '</div> <!-- .et_pb_posts -->' : '' ),
-				( '' !== $module_id ? sprintf( ' id="%1$s"', esc_attr( $module_id ) ) : '' ),
-				( '' !== $module_class ? sprintf( ' %1$s', esc_attr( $module_class ) ) : '' ),
-				'' !== $video_background ? ' et_pb_section_video et_pb_preload' : '',
-				$video_background,
-				'' !== $parallax_image_background ? ' et_pb_section_parallax' : '',
+				$this->module_id(),
+				$video_background, // #5
 				$parallax_image_background,
-				$this->get_text_orientation_classname(),
-				$this->drop_shadow_back_compatibility( $function_name )
+				$this->drop_shadow_back_compatibility( $render_slug ),
+				et_core_esc_previously( $data_background_layout ),
+				et_core_esc_previously( $data_background_layout_hover ),
+				et_core_esc_previously( $multi_view_data_attr ) #10
 			);
 		}
 
 		// Restore $wp_filter
-		$wp_filter = $wp_filter_cache;
+		$wp_filter = $wp_filter_cache; // phpcs:ignore WordPress.Variables.GlobalVariables.OverrideProhibited
 		unset($wp_filter_cache);
 
 		// Restore global $post into its original state when et_pb_blog shortcode ends to avoid
 		// the rest of the page uses incorrect global $post variable
-		$post = $post_cache;
+		$post = $post_cache; // phpcs:ignore WordPress.Variables.GlobalVariables.OverrideProhibited
 
 		return $output;
 	}
 
 	public function process_box_shadow( $function_name ) {
-		/**
-		 * @var ET_Builder_Module_Field_BoxShadow $boxShadow
-		 */
-		$boxShadow = ET_Builder_Module_Fields_Factory::get( 'BoxShadow' );
-		$selector = '.' . self::get_module_order_class( $function_name );
-
-		if ( isset( $this->shortcode_atts['fullwidth'] ) && $this->shortcode_atts['fullwidth'] === 'off' ) {
-			$selector .= ' article.et_pb_post';
+		if ( isset( $this->props['fullwidth'] ) && $this->props['fullwidth'] === 'off' ) {
+			// Only override 'default' box shadow because we also defined
+			// box shadow settings for the image.
+			$this->advanced_fields['box_shadow']['default'] = array(
+				'css' => array(
+					'main'    => '%%order_class%% article.et_pb_post',
+					'overlay' => 'inset',
+				),
+			);
 		}
 
-		self::set_style( $function_name, $boxShadow->get_style( $selector, $this->shortcode_atts ) );
-	}
-
-	protected function _add_additional_border_fields() {
-		parent::_add_additional_border_fields();
-
-		$suffix = 'fullwidth';
-
-		$this->_additional_fields_options = array_merge(
-			$this->_additional_fields_options,
-			ET_Builder_Module_Fields_Factory::get( 'Border' )->get_fields( array(
-				'suffix'          => "_{$suffix}",
-				'depends_to'      => array( 'fullwidth' ),
-				'depends_show_if' => 'on',
-				'defaults'        => array(
-					'border_radii'  => 'on||||',
-					'border_styles' => array(
-						'width' => '0px',
-						'color' => '#333333',
-						'style' => 'solid',
-					),
-				),
-			) )
-		);
-
-		$this->advanced_options["border_{$suffix}"]["border_styles_{$suffix}"] = $this->_additional_fields_options["border_styles_{$suffix}"];
-		$this->advanced_options["border_{$suffix}"]["border_radii_{$suffix}"] = $this->_additional_fields_options["border_radii_{$suffix}"];
-
-		$this->advanced_options["border_{$suffix}"]['css'] = array(
-			'main' => array(
-				'border_radii'  => "%%order_class%%:not(.et_pb_blog_grid) .et_pb_post",
-				'border_styles' => "%%order_class%%:not(.et_pb_blog_grid) .et_pb_post",
-			),
-		);
-	}
-
-	function process_advanced_border_options( $function_name ) {
-		parent::process_advanced_border_options( $function_name );
-
-		$suffix = 'fullwidth';
-		/**
-		 * @var ET_Builder_Module_Field_Border $border_field
-		 */
-		$border_field = ET_Builder_Module_Fields_Factory::get( 'Border' );
-
-		$css_selector = ! empty( $this->advanced_options["border_{$suffix}"]['css']['main']['border_radii'] ) ? $this->advanced_options["border_{$suffix}"]['css']['main']['border_radii'] : $this->main_css_element;
-		self::set_style( $function_name, array(
-			'selector'    => $css_selector,
-			'declaration' => $border_field->get_radii_style( $this->shortcode_atts, $this->advanced_options, "_{$suffix}" ),
-			'priority'    => $this->_style_priority,
-		) );
-
-		$css_selector = ! empty( $this->advanced_options["border_{$suffix}"]['css']['main']['border_styles'] ) ? $this->advanced_options["border_{$suffix}"]['css']['main']['border_styles'] : $this->main_css_element;
-		self::set_style( $function_name, array(
-			'selector'    => $css_selector,
-			'declaration' => $border_field->get_borders_style( $this->shortcode_atts, $this->advanced_options, "_{$suffix}" ),
-			'priority'    => $this->_style_priority,
-		) );
+		parent::process_box_shadow( $function_name );
 	}
 
 	/**
@@ -1379,7 +1592,7 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 	 */
 	private function drop_shadow_back_compatibility( $functions_name ) {
 		$utils = ET_Core_Data_Utils::instance();
-		$atts  = $this->shortcode_atts;
+		$atts  = $this->props;
 
 		if (
 			version_compare( $utils->array_get( $atts, '_builder_version', '3.0.93' ), '3.0.94', 'lt' )
@@ -1397,6 +1610,100 @@ class ET_Builder_Module_Blog extends ET_Builder_Module_Type_PostBased {
 		}
 
 		return '';
+	}
+
+	/**
+	 * Filter multi view value.
+	 *
+	 * @since 3.27.1
+	 *
+	 * @see ET_Builder_Module_Helper_MultiViewOptions::filter_value
+	 *
+	 * @param mixed $raw_value Props raw value.
+	 * @param array $args {
+	 *     Context data.
+	 *
+	 *     @type string $context      Context param: content, attrs, visibility, classes.
+	 *     @type string $name         Module options props name.
+	 *     @type string $mode         Current data mode: desktop, hover, tablet, phone.
+	 *     @type string $attr_key     Attribute key for attrs context data. Example: src, class, etc.
+	 *     @type string $attr_sub_key Attribute sub key that availabe when passing attrs value as array such as styes. Example: padding-top, margin-botton, etc.
+	 * }
+	 * @param ET_Builder_Module_Helper_MultiViewOptions $multi_view Multiview object instance.
+	 *
+	 * @return mixed
+	 */
+	public function multi_view_filter_value( $raw_value, $args, $multi_view ) {
+		$name    = isset( $args['name'] ) ? $args['name'] : '';
+		$mode    = isset( $args['mode'] ) ? $args['mode'] : '';
+		$context = isset( $args['context'] ) ? $args['context'] : '';
+
+		if ( 'post_content' === $name && 'content' === $context ) {
+			if ( 'on' === $raw_value ) {
+				$post_content = et_strip_shortcodes( et_delete_post_first_video( get_the_content() ), true );
+
+				if ( et_pb_is_pagebuilder_used( get_the_ID() ) ) {
+					$raw_value = et_core_intentionally_unescaped( apply_filters( 'the_content', $post_content ), 'html' );
+				} else {
+					$raw_value = et_core_intentionally_unescaped( apply_filters( 'the_content', et_delete_post_first_video( get_the_content( esc_html__( 'read more...', 'et_builder' ) ) ) ), 'html' );
+				}
+			} else {
+				$use_manual_excerpt = isset( $this->props['use_manual_excerpt'] ) ? $this->props['use_manual_excerpt'] : 'off';
+				$excerpt_length     = isset( $this->props['excerpt_length'] ) ? $this->props['excerpt_length'] : 270;
+
+				if ( has_excerpt() && 'off' !== $use_manual_excerpt ) {
+					/**
+					 * Filters the displayed post excerpt.
+					 *
+					 * @since 3.29
+					 *
+					 * @param string $post_excerpt The post excerpt.
+					 */
+					$raw_value = apply_filters( 'the_excerpt', get_the_excerpt() );
+				} else {
+					$raw_value = et_core_intentionally_unescaped( wpautop( et_delete_post_first_video( strip_shortcodes( truncate_post( $excerpt_length, false, '', true ) ) ) ), 'html' );
+				}
+			}
+		} else if ( 'show_content' === $name && 'visibility' === $context ) {
+			$raw_value = $multi_view->has_value( $name, 'on', $mode, true ) ? 'on' : $raw_value;
+		} else if ( 'post_meta_removes' === $name && 'content' === $context ) {
+			$post_meta_remove_keys = array(
+				'show_author'     => true,
+				'show_date'       => true,
+				'show_categories' => true,
+				'show_comments'   => true,
+			);
+
+			$post_meta_removes = explode( ',', $raw_value );
+
+			if ( $post_meta_removes ) {
+				foreach ( $post_meta_removes as $post_meta_remove ) {
+					unset( $post_meta_remove_keys[ $post_meta_remove ] );
+				}
+			}
+
+			$post_meta_datas = array();
+
+			if ( isset( $post_meta_remove_keys['show_author'] ) ) {
+				$post_meta_datas[] = et_get_safe_localization( sprintf( __( 'by %s', 'et_builder' ), '<span class="author vcard">' . et_pb_get_the_author_posts_link() . '</span>' ) );
+			}
+
+			if ( isset( $post_meta_remove_keys['show_date'] ) ) {
+				$post_meta_datas[] = et_get_safe_localization( sprintf( __( '%s', 'et_builder' ), '<span class="published">' . esc_html( get_the_date( $this->props['meta_date'] ) ) . '</span>' ) );
+			}
+
+			if ( isset( $post_meta_remove_keys['show_categories'] ) ) {
+				$post_meta_datas[] = get_the_category_list( ', ' );
+			}
+
+			if ( isset( $post_meta_remove_keys['show_comments'] ) ) {
+				$post_meta_datas[] = sprintf( esc_html( _nx( '%s Comment', '%s Comments', get_comments_number(), 'number of comments', 'et_builder' ) ), number_format_i18n( get_comments_number() ) );
+			}
+
+			$raw_value = implode( ' | ', $post_meta_datas );
+		}
+
+		return $raw_value;
 	}
 }
 

@@ -5,13 +5,16 @@ window.wp = window.wp || {};
 /**
  * The builder version and product name will be updated by grunt release task. Do not edit!
  */
-window.et_builder_version = '3.0.106';
+window.et_builder_version = '3.29.3';
 window.et_builder_product_name = 'Divi';
 
 ( function($) {
 	var et_error_modal_shown = window.et_error_modal_shown,
 		et_is_loading_missing_modules = false,
+		et_is_loading_templates = false,
 		et_pb_bulder_loading_attempts = 0,
+		et_pb_template_requests_number = 0,
+		et_pb_template_requests_completed = 0,
 		et_ls_prefix = 'et_pb_templates_',
 		et_pb_hovered_item_buffer = {},
 		et_pb_all_unsynced_options = {},
@@ -34,6 +37,25 @@ window.et_builder_product_name = 'Divi';
 		}
 		return template.replace(placeholder, unique);
 	}
+
+	function et_builder_library_get_layouts_data() {
+		return new Promise( function ( resolve, reject ) {
+			$.ajax( {
+				type:     'POST',
+				url:      et_pb_options.ajaxurl,
+				dataType: 'json',
+				data:     {
+					action: 'et_builder_library_get_layouts_data',
+					postId: et_pb_options.postId,
+					nonce:  et_pb_options.library_get_layouts_data_nonce
+				}
+			} ).then( function( response ) {
+				resolve( get( response, 'data', '' ) );
+			} );
+		} );
+	}
+
+	var et_builder_layouts_loaded = et_builder_library_get_layouts_data();
 
 	function et_builder_maybe_clear_localstorage() {
 		var settings_product_version = et_pb_options.product_version,
@@ -117,6 +139,11 @@ window.et_builder_product_name = 'Divi';
 		}
 
 		if ( et_should_load_from_local_storage() ) {
+			// Wait until templates loading finished to avoid conflict requests.
+			if (et_is_loading_templates) {
+				return;
+			}
+
 			for ( var et_ls_module_index in et_ls_all_modules ) {
 				var et_ls_module_slug      = et_ls_all_modules[ et_ls_module_index ],
 					et_ls_template_slug    = et_ls_prefix + et_ls_module_slug,
@@ -182,8 +209,13 @@ window.et_builder_product_name = 'Divi';
 					clearInterval( et_pb_templates_interval );
 					return false;
 				}
+				
+				et_is_loading_templates = true;
+				
+				// calculate the overall requests number to understand when we finish all the requests.
+				et_pb_template_requests_number++;
 
-				et_pb_append_templates( et_pb_templates_count * et_pb_options.et_builder_templates_amount );
+				et_pb_append_templates(et_pb_templates_count * et_pb_options.et_builder_templates_amount);
 
 				et_pb_templates_count++;
 			}, 800);
@@ -313,6 +345,14 @@ window.et_builder_product_name = 'Divi';
 
 						$( 'body' ).append( template );
 					}
+
+					et_pb_template_requests_completed++;
+
+					// Run et_builder_load_backbone_templates() once all the requests finished to load all missing templates if any.
+					if (et_pb_template_requests_number > 0 && et_pb_template_requests_number === et_pb_template_requests_completed) {
+						et_is_loading_templates = false;
+						et_builder_load_backbone_templates();
+					}
 				}
 			});
 		}
@@ -385,6 +425,41 @@ window.et_builder_product_name = 'Divi';
 		return string.substr( 0, substring.length ) === substring;
 	}
 
+	/**
+	 * Determine whether the given value represents dynamic content.
+	 * Added to ET_PageBuilder so it can be access from inside templates.
+	 *
+	 * @param {string} content
+	 * @return {boolean}
+	 */
+	ET_PageBuilder.isDynamicContent = function(content) {
+		if (typeof content !== 'string') {
+			return false;
+		}
+
+		var clearParagraph = new RegExp(/^<p>(.*)<\/p>$/, 'i');
+		var trimSpace      = /^\s+|\s+$/;
+		var cleanContent   = content.replace(trimSpace, '');
+		cleanContent       = cleanContent.replace(clearParagraph, '$1');
+		cleanContent       = cleanContent.replace(trimSpace, '');
+
+		try {
+			// Test for encoded dynamic content.
+			if (/^@ET-DC@(.*?)@$/.test(cleanContent)) {
+				return true;
+			}
+
+			// Test for legacy JSON-encoded dynamic content.
+			var parsedContent = JSON.parse(cleanContent);
+			if (typeof parsedContent.dynamic !== 'undefined' && true === parsedContent.dynamic) {
+				return true;
+			}
+		} catch (e) {
+			// do nothing
+		}
+
+		return false;
+	};
 
 	$( document ).ready( function() {
 
@@ -402,7 +477,7 @@ window.et_builder_product_name = 'Divi';
 			var	setting_value;
 			var checked_values = [];
 			var custom_css_option_value;
-			var name = $setting.is('#et_pb_content_main') ? 'et_pb_content_new' : $setting.attr('id');
+			var name = $setting.is('#et_pb_content_main') ? 'et_pb_content' : $setting.attr('id');
 
 			// Process all checkboxex for the current setting at once
 			if ($setting.is(':checkbox')) {
@@ -453,10 +528,9 @@ window.et_builder_product_name = 'Divi';
 					setting_value = $setting.val();
 				}
 			} else if ( ! $setting.is( ':checkbox' ) ) {
-				// Process all other settings: inputs, textarea#et_pb_content_new, range sliders etc.
-
-				setting_value = $setting.is('textarea#et_pb_content_new')
-					? et_pb_get_content( 'et_pb_content_new' )
+				// Process all other settings: inputs, textarea#wp-editor-area, range sliders etc.
+				setting_value = $setting.is('textarea.wp-editor-area')
+					? et_pb_get_content(name)
 					: $setting.val();
 
 				if ( $setting.hasClass( 'et-pb-range-input' ) && setting_value === 'px' ) {
@@ -468,6 +542,49 @@ window.et_builder_product_name = 'Divi';
 			}
 			return setting_value;
 		};
+		ET_PageBuilder.Helpers.hasValue = function(value) {
+			return ! _.isUndefined(value) && '' !== value;
+		};
+		ET_PageBuilder.Helpers.isOn = function(value) {
+			return ! _.isUndefined(value) && 'on' === value;
+		};
+		ET_PageBuilder.Helpers.moduleHasBackground = function(moduleAttrs, backgroundTypes) {
+			var thisClass = this;
+			var allBackgroundTypes = ['color', 'gradient', 'image', 'video'];
+			var types = _.isUndefined(backgroundTypes) ? allBackgroundTypes : backgroundTypes;
+			var hasBackground = false;
+
+			_.forEach(types, function(type) {
+				var checkBackground = false;
+
+				switch(type) {
+					case 'color':
+						checkBackground = thisClass.hasValue(moduleAttrs.et_pb_background_color);
+						break;
+					case 'gradient':
+						checkBackground = thisClass.isOn(moduleAttrs.et_pb_use_background_color_gradient);
+						break;
+					case 'image':
+						checkBackground = thisClass.hasValue(moduleAttrs.et_pb_background_image);
+						break;
+					case 'video':
+						var hasBackgroundVideoMp4 = thisClass.hasValue(moduleAttrs.et_pb_background_video_mp4);
+						var hasBackgroundVideoWebm = thisClass.hasValue(moduleAttrs.et_pb_background_video_webm);
+
+						checkBackground = hasBackgroundVideoMp4 || hasBackgroundVideoWebm;
+						break;
+				}
+
+				// Underscore's forEach loop can't be stopped so make the check evaluates checkBackground
+				// variable and update hasBackground if checkBackground returns true
+				if (checkBackground) {
+					hasBackground = true;
+				}
+			});
+
+			return hasBackground;
+		},
+
 		// Models
 
 		ET_PageBuilder.Module = Backbone.Model.extend( {
@@ -710,10 +827,11 @@ window.et_builder_product_name = 'Divi';
 				return num;
 			},
 
-			getTitleByShortcodeTag : function ( tag ) {
+			getTitleByShortcodeTag : function(tag) {
 				var modules = this.get('modules');
+				var module = _.findWhere(modules, { label : tag });
 
-				return _.findWhere( modules, { label : tag } )['title'];
+				return !_.isUndefined(module) ? module['title'] : tag;
 			},
 
 			getDefaultAdminLabel : function( module_type ) {
@@ -964,13 +1082,9 @@ window.et_builder_product_name = 'Divi';
 
 					// Enable history saving and set meta for history
 					ET_PageBuilder_App.allowHistorySaving( 'edited', 'column' );
-
-					if ( ! skip_reinit ) {
-						et_reinitialize_builder_layout();
-					}
 				}
 
-				if ( typeof that.model.get( 'template_type' ) !== 'undefined' && 'section' === that.model.get( 'template_type' ) && 'on' === that.model.get( 'et_pb_specialty' ) ) {
+				if (typeof that.model.get('template_type') !== 'undefined' && 'section' === that.model.get('template_type') && 'on' === that.model.get('et_pb_specialty') || !skip_reinit) {
 					et_reinitialize_builder_layout();
 				}
 
@@ -1091,10 +1205,16 @@ window.et_builder_product_name = 'Divi';
 
 				event.preventDefault();
 
+				// prep code module content for wpautop
+				shortcode = ET_PageBuilder_App.codeModuleContentPrep(shortcode);
+
 				// apply wpautop to the shortcode to make sure all the line breaks inserted correctly
 				if ( typeof window.switchEditors !== 'undefined' ) {
 					shortcode = et_pb_fix_shortcodes( window.switchEditors.wpautop( shortcode ) );
 				}
+
+				// unprep code module
+				shortcode = ET_PageBuilder_App.codeModuleContentUnPrep(shortcode);
 
 				ET_PageBuilder_App.createLayoutFromContent( shortcode , parent_id, '', { ignore_template_tag : 'ignore_template', current_row_cid : current_row, global_id : global_id, after_section : parent_id, is_reinit : 'reinit', 'unsynced_options' : unsynced_options } );
 				et_reinitialize_builder_layout();
@@ -2475,6 +2595,9 @@ window.et_builder_product_name = 'Divi';
 
 					// hide "change columns structure" icon, column layout can be re-applied using "Insert column(s)" button
 					this.$( '.et-pb-change-structure' ).hide();
+
+					// Reinit builder layout to make sure columns updated correctly in the shortocde.
+					et_reinitialize_builder_layout();
 				}
 
 				// Enable history saving and set meta for history
@@ -2704,8 +2827,11 @@ window.et_builder_product_name = 'Divi';
 					$( '.et_modal_on_top' ).remove();
 				} else {
 
-					if ( typeof this.model !== 'undefined' && this.model.get( 'type' ) === 'module' && this.$( '#et_pb_content_new' ).length )
-						et_pb_tinymce_remove_control( 'et_pb_content_new' );
+					if (typeof this.model !== 'undefined' && this.model.get('type') === 'module' && this.$('.wp-editor-area').length) {
+						et_pb_tinymce_remove_control( 'et_pb_content' );
+						et_pb_tinymce_remove_control( 'et_pb_description' );
+						et_pb_tinymce_remove_control( 'et_pb_footer_content' );
+					}
 
 					et_pb_hide_active_color_picker( this );
 
@@ -2793,7 +2919,9 @@ window.et_builder_product_name = 'Divi';
 					return;
 				}
 
-				et_pb_tinymce_remove_control( 'et_pb_content_new' );
+				et_pb_tinymce_remove_control( 'et_pb_content' );
+				et_pb_tinymce_remove_control( 'et_pb_description' );
+				et_pb_tinymce_remove_control( 'et_pb_footer_content' );
 
 				et_pb_hide_active_color_picker( that );
 
@@ -2849,7 +2977,8 @@ window.et_builder_product_name = 'Divi';
 				request_data = {
 					et_pb_preview_nonce : et_pb_options.et_pb_preview_nonce,
 					shortcode           : shortcode,
-					post_title          : $('#title').val()
+					post_title          : $('#title').val(),
+					post_id             : et_pb_options.postId
 				};
 
 				// Toggle button state
@@ -2928,6 +3057,7 @@ window.et_builder_product_name = 'Divi';
 				var defaults   = {};
 				var options_selector = typeof option_tabs_selector !== 'undefined' && '' !== option_tabs_selector ? option_tabs_selector : 'input, select, textarea, #et_pb_content_main';
 				var shortcode_name = thisClass.model.get( 'module_type' );
+				var address = thisClass.model.get( '_address' );
 				var $et_form_validation;
 
 				shortcode_name = shortcode_name.indexOf( 'et_pb_' ) === -1 ? ( 'et_pb_' + shortcode_name ) : shortcode_name;
@@ -2956,8 +3086,8 @@ window.et_builder_product_name = 'Divi';
 							var $this_el = $( this );
 							var this_option_name = $this_el.data( 'option_name' );
 
-							// transform 'content_new' and 'raw_content' to 'et_pb_content_field'
-							this_option_name = _.includes( ['content_new', 'raw_content'], this_option_name ) ? 'et_pb_content_field' : this_option_name;
+							// transform 'content' and 'raw_content' to 'et_pb_content_field'
+							this_option_name = _.includes( ['content', 'raw_content'], this_option_name ) ? 'et_pb_content_field' : this_option_name;
 
 							unsynced_options_array.push( this_option_name );
 
@@ -2967,15 +3097,6 @@ window.et_builder_product_name = 'Divi';
 								unsynced_options_array.push( this_option_name + '_phone' );
 							}
 						});
-					}
-
-					// Automatically sync/unsync gallery_ids and gallery_orderby on gallery module if src is synced/unsynced
-					if ( 'et_pb_gallery' === shortcode_name ) {
-						if ( _.contains( unsynced_options_array, 'src' ) ) {
-							unsynced_options_array = _.union( unsynced_options_array, [ 'gallery_ids', 'gallery_orderby' ] );
-						} else {
-							unsynced_options_array = _.without( unsynced_options_array, 'gallery_ids', 'gallery_orderby' );
-						}
 					}
 
 					et_pb_all_unsynced_options[ global_module_id ] = unsynced_options_array;
@@ -2993,16 +3114,20 @@ window.et_builder_product_name = 'Divi';
 
 				// Delete migrated attributes to avoid unwanted value re-assignment
 				// Their values were migrated to new attributes at this point
-				if ( name_changes &&  ! _.isUndefined( name_changes[shortcode_name] ) ) {
-					_.forEach( name_changes[shortcode_name], function( new_name, old_name ) {
+				if ( name_changes &&  ! _.isUndefined( name_changes[ address ] ) ) {
+					_.forEach( name_changes[ address ], function( new_name, old_name ) {
 						unsetAttrs.push( 'et_pb_' + old_name );
 					});
+
+					// After being used, _builder version is updated thus making the migration obsolete.
+					// To avoid migration being re-implemented and producing incorrect attrs, current migration has to be removed
+					delete et_pb_options.et_pb_module_settings_migrations.name_changes[ address ];
 				}
 
 				this.$( options_selector ).each( function() {
 					var $this_el = $(this);
 					var default_value = et_pb_get_default_setting_value($this_el) || '';
-					var name = $this_el.is('#et_pb_content_main') ? 'et_pb_content_new' : $this_el.attr('id');
+					var name = $this_el.is('#et_pb_content_main') ? 'et_pb_content' : $this_el.attr('id');
 					var isEqualToDefault = function (v1, v2) {
 						return $this_el.hasClass('et-pb-range-input')
 							? _.isEqual(parseFloat(v1), parseFloat(v2))
@@ -3031,7 +3156,11 @@ window.et_builder_product_name = 'Divi';
 					}
 
 					// Validate colorpicker - if invalid color given, return to default color
-					if ( $this_el.hasClass( 'et-pb-color-picker-hex' ) && new Color( $this_el.val() ).error && ! $this_el.hasClass( 'et-pb-is-cleared' ) ) {
+					var is_divider_color = name.indexOf('divider_color') > -1;
+					if ( $this_el.hasClass( 'et-pb-color-picker-hex' )
+						&& new Color( $this_el.val() ).error
+						&& ! $this_el.hasClass( 'et-pb-is-cleared' )
+						&& ! is_divider_color ) {
 						$this_el.val( $this_el.data( 'selected-value') );
 					}
 
@@ -3220,9 +3349,10 @@ window.et_builder_product_name = 'Divi';
 					delay: 100,
 					items : ( this.model.get( 'layout_specialty' ) !== '1' ? '.et_pb_module_block' : '.et_pb_row' ),
 					receive: function(event, ui) {
-						var $this = $(this),
-							columns_number,
-							cancel_action = false;
+						var $this = $(this);
+						var columns_number;
+						var cancel_action = false;
+						var is_2_3;
 
 						if ( $this.hasClass( 'et-pb-column-specialty' ) ) {
 							// revert if the last row is being dragged out of the specialty section
@@ -3233,9 +3363,9 @@ window.et_builder_product_name = 'Divi';
 								cancel_action = true;
 							} else {
 								columns_number = $(ui.item).find( '.et-pb-row-container > .et-pb-column' ).length;
-
-								if ( columns_number === 3 && parseInt( ET_PageBuilder_Layout.getView( $this.data( 'cid' ) ).model.get( 'specialty_columns' ) ) !== 3 ) {
-									alert( et_pb_options.stop_dropping_3_col_row );
+								is_2_3 = ET_PageBuilder_Layout.getView( $this.data( 'cid' ) ).model.get( 'layout' ) === '2_3';
+								if ((is_2_3 && columns_number === 3) || (! is_2_3 && columns_number === 4)) {
+									alert(et_pb_options.stop_dropping_3_col_row);
 									cancel_action = true;
 								}
 							}
@@ -3698,7 +3828,6 @@ window.et_builder_product_name = 'Divi';
 
 				this.library_url = 'https://www.elegantthemes.com/layouts';
 
-				this.local_layouts        = et_pb_options.library_local_layouts;
 				this.back_button_template = _.template( $('#et-builder-library-back-button-template').html() );
 				this.current_page         = {};
 				this.account_status_error = false;
@@ -3750,9 +3879,11 @@ window.et_builder_product_name = 'Divi';
 
 				this.emitLoadingStarted();
 
-				this.loadLibrary().then( _.bind( function( child ) {
-					this.library  = child;
-					this.$library = $( child.frame );
+				Promise.all( [this.loadLibrary(), et_builder_layouts_loaded] ).then( _.bind( function( promises ) {
+					this.library        = promises[0];
+					this.$library       = $( this.library.frame );
+					this.local_layouts  = promises[1].layouts_data;
+					this.custom_layouts = promises[1].custom_layouts_data;
 
 					this.setIFrameSize();
 
@@ -3871,7 +4002,10 @@ window.et_builder_product_name = 'Divi';
 							is_BB:  true
 						}
 					} ).then( function( response ) {
-						resolve( get( response, 'data.savedShortcode', '' ) );
+						resolve({
+							content: get( response, 'data.savedShortcode', '' ),
+							migrations:  get( response, 'data.migrations', '' )
+						});
 					} );
 				} );
 			},
@@ -3888,7 +4022,10 @@ window.et_builder_product_name = 'Divi';
 					layout.name         = 'layout.json';
 
 					$window.on( 'et_fb_layout_import_finished.et_bb', function() {
-						resolve( get( window.et_fb_import_layout_response, 'data.postContent', '' ) );
+						resolve( {
+							content:    get( window.et_fb_import_layout_response, 'data.postContent', '' ),
+							migrations: get(window.et_fb_import_layout_response, 'data.migrations', '')
+						} );
 						$window.off( 'et_fb_layout_import_finished.et_bb' );
 					} );
 
@@ -4102,9 +4239,15 @@ window.et_builder_product_name = 'Divi';
 
 				this.emitLoadingStarted();
 
-				getLayout( layout ).then( _.bind( function( content ) {
+				getLayout( layout ).then( _.bind( function( layout ) {
+					var content = layout.content;
+
 					if ( ! replace_content ) {
 						content = et_pb_get_content( 'content' ) + content;
+					}
+
+					if ( ! _.isUndefined( layout.migrations ) ) {
+						et_pb_options.et_pb_module_settings_migrations = layout.migrations;
 					}
 
 					ET_PageBuilder_App.removeAllSections();
@@ -4166,7 +4309,6 @@ window.et_builder_product_name = 'Divi';
 
 			switchTab: function( event ) {
 				event.preventDefault();
-
 				var $tab       = $( event.currentTarget ).parent();
 				var tab        = $tab.data( 'open_tab' );
 				var layouts    = {};
@@ -4201,9 +4343,12 @@ window.et_builder_product_name = 'Divi';
 						.siblings()
 						.removeClass( 'et-pb-options-tabs-links-active' );
 
-					if ( 'et-pb-saved-modules-tab' === tab ) {
+					if ('et-pb-all-modules-tab' !== tab) {
+						var custom_tab_id = $tab.data('custom_tab_id');
+						var layouts_data = _.isUndefined(custom_tab_id) || '' === custom_tab_id ? this.local_layouts : this.custom_layouts[custom_tab_id];
+
 						// Display local layouts
-						layouts = $.extend( this.local_layouts, {
+						layouts = $.extend(layouts_data, {
 							filters: {
 								type: 'layout'
 							},
@@ -4319,7 +4464,14 @@ window.et_builder_product_name = 'Divi';
 			className : 'et_pb_module_settings',
 
 			initialize : function() {
-				if ( ! $( ET_PageBuilder_Layout.generateTemplateName( this.attributes['data-module_type'] ) ).length ) {
+				var modulesWithChild  = $.parseJSON(et_pb_options.et_builder_modules_with_children);
+				var moduleType        = this.attributes['data-module_type'];
+				var childTemplateSlug = get(modulesWithChild, moduleType, false);
+				var childTemplateId   = childTemplateSlug ? '#et-builder-advanced-setting-' + childTemplateSlug + '-title' : false;
+				var mainTemplateId    = ET_PageBuilder_Layout.generateTemplateName(this.attributes['data-module_type']);
+
+				// Make sure required child template is loaded along with main template.
+				if ($(mainTemplateId).length < 1 || (childTemplateId && $(childTemplateId).length < 1)) {
 					this.attributes['data-no_template'] = 'no_template';
 					return;
 				}
@@ -4336,8 +4488,9 @@ window.et_builder_product_name = 'Divi';
 				var thisClass = this,
 					$this_el = this.$el,
 					content = '',
+					contents = [],
 					this_module_cid = this.model.attributes.cid,
-					$content_textarea,
+					$content_textareas,
 					$content_textarea_container,
 					$content_textarea_option,
 					advanced_mode = false,
@@ -4362,14 +4515,14 @@ window.et_builder_product_name = 'Divi';
 				// Replace encoded double quotes with normal quotes,
 				// escaping is applied in modules templates
 				_.each( this.model.attributes, function( value, key, list ) {
-					if ( typeof value === 'string' && key !== 'et_pb_content_new' && -1 === $.inArray( key, $icon_font_options ) && ! /^\%\%\d+\%\%$/.test( $.trim( value ) ) ) {
+					if ( typeof value === 'string' && key !== 'et_pb_content' && -1 === $.inArray( key, $icon_font_options ) && ! /^\%\%\d+\%\%$/.test( $.trim( value ) ) ) {
 						return list[ key ] = value.replace( /%22/g, '"' );
 					}
 				} );
 
 				this.$el.html( this.template( this.model.attributes ) );
 
-				$content_textarea = this.$el.find( '#et_pb_content_new' );
+				$content_textareas = this.$el.find('#et_pb_content, .et_pb_tiny_mce_field');
 
 				$color_picker = this.$el.find('.et-pb-color-picker-hex');
 
@@ -4457,10 +4610,6 @@ window.et_builder_product_name = 'Divi';
 										if ( $reset_button.length  ) {
 											$reset_button.addClass( 'et-pb-reset-icon-visible' );
 										}
-
-										if ( has_preview ) {
-											$preview.removeClass('et-pb-option-preview--empty');
-										}
 									} else {
 										if ( $reset_button.length  ) {
 											$reset_button.removeClass( 'et-pb-reset-icon-visible' );
@@ -4469,6 +4618,11 @@ window.et_builder_product_name = 'Divi';
 										if ( has_preview ) {
 											$preview.addClass('et-pb-option-preview--empty');
 										}
+									}
+
+									// Preview should be rendered as non-empty even if current color is default
+									if (has_preview && '' !== current_value) {
+										$preview.removeClass('et-pb-option-preview--empty');
 									}
 								}
 
@@ -4538,13 +4692,16 @@ window.et_builder_product_name = 'Divi';
 								$this.wpColorPicker('open');
 							});
 
-							$option_container.find('.et-pb-option-preview-button--delete').click( function(e) {
+							$option_container.find('.et-pb-option-preview-button--delete').click(function(e) {
 								e.stopPropagation();
+								var default_value = et_pb_get_default_setting_value($this).toLowerCase();
 
 								// Clear color value on DOM and colorpicker then add cleared class name to bypass color validation
-								$this.wpColorPicker( 'color', '' ).val( '' ).addClass( 'et-pb-is-cleared' );
+								$this.wpColorPicker('color', default_value).val(default_value).addClass('et-pb-is-cleared');
 
-								$option_container.find('.et-pb-option-preview').removeAttr('style').addClass('et-pb-option-preview--empty');
+								if ('' === default_value) {
+									$option_container.find('.et-pb-option-preview').removeAttr('style').addClass('et-pb-option-preview--empty');
+								}
 							});
 						}
 
@@ -4748,56 +4905,64 @@ window.et_builder_product_name = 'Divi';
 					});
 				}
 
-				if ( $content_textarea.length ) {
-					$content_textarea_option = $content_textarea.closest( '.et-pb-option' );
+				if ($content_textareas.length) {
+					$content_textareas.each(function() {
+						var $content_textarea = $(this);
+						var textarea_id = $content_textarea.attr('id');
+						$content_textarea_option = $content_textarea.closest('.et-pb-option');
 
-					if ( $content_textarea_option.hasClass( 'et-pb-option-advanced-module' ) )
-						advanced_mode = true;
 
-					if ( ! advanced_mode ) {
-						$content_textarea_container = $content_textarea.closest( '.et-pb-option-container' );
+						if ($content_textarea_option.hasClass('et-pb-option-advanced-module'))
+							advanced_mode = true;
 
-						content = $content_textarea.html();
+						if (!advanced_mode) {
+							$content_textarea_container = $content_textarea.closest('.et-pb-option-container');
 
-						$content_textarea.remove();
+							contents[textarea_id] = $content_textarea.html();
 
-						$content_textarea_container.prepend( et_pb_content_html );
+							$content_textarea.remove();
 
-						setTimeout( function() {
-							if ( typeof window.switchEditors !== 'undefined' ) {
-								window.switchEditors.go( 'et_pb_content_new', et_get_editor_mode() );
+							$content_textarea_container.prepend($et_pb_content.find('#' + textarea_id + '_editor').html());
+
+							setTimeout(function() {
+								if (typeof window.switchEditors !== 'undefined') {
+									window.switchEditors.go(textarea_id, et_get_editor_mode());
+								}
+
+								// Specify action for secondary input fields to correctly process the content
+								var action = 'et_pb_content' !== textarea_id ? 'load_secondary_editor' : '';
+
+								et_pb_set_content(textarea_id, contents[textarea_id], action);
+
+								window.wpActiveEditor = textarea_id;
+							}, 100 );
+						} else {
+							var view_cid = ET_PageBuilder_Layout.generateNewId();
+							thisClass.view_cid = view_cid;
+
+							$content_textarea_option.hide();
+
+							$content_textarea.attr('id', 'et_pb_content_main');
+
+							view = new ET_PageBuilder.AdvancedModuleSettingsView({
+								model : thisClass,
+								el : thisClass.$el.find('.et-pb-option-advanced-module-settings'),
+								attributes : {
+									cid : view_cid,
+									value_changes : thisClass.model.get('value_changes'),
+								}
+							} );
+
+							ET_PageBuilder_Layout.addView(view_cid, view);
+
+							$content_textarea_option.before(view.render());
+
+							if ($content_textarea.html() !== '') {
+								view.generateAdvancedSortableItems($content_textarea.html(), thisClass.$el.find('.et-pb-option-advanced-module-settings').data('module_type'));
+								ET_PageBuilder_Events.trigger('et-advanced-module:updated_order', thisClass.$el);
 							}
-
-							et_pb_set_content( 'et_pb_content_new', content );
-
-							window.wpActiveEditor = 'et_pb_content_new';
-						}, 100 );
-					} else {
-						var view_cid = ET_PageBuilder_Layout.generateNewId();
-						this.view_cid = view_cid;
-
-						$content_textarea_option.hide();
-
-						$content_textarea.attr( 'id', 'et_pb_content_main' );
-
-						view = new ET_PageBuilder.AdvancedModuleSettingsView( {
-							model : this,
-							el : this.$el.find( '.et-pb-option-advanced-module-settings' ),
-							attributes : {
-								cid : view_cid,
-								value_changes : thisClass.model.get( 'value_changes' ),
-							}
-						} );
-
-						ET_PageBuilder_Layout.addView( view_cid, view );
-
-						$content_textarea_option.before( view.render() );
-
-						if ( $content_textarea.html() !== '' ) {
-							view.generateAdvancedSortableItems( $content_textarea.html(), this.$el.find( '.et-pb-option-advanced-module-settings' ).data( 'module_type' ) );
-							ET_PageBuilder_Events.trigger( 'et-advanced-module:updated_order', this.$el );
 						}
-					}
+					});
 				}
 
 				if ( $warning.length ) {
@@ -4848,39 +5013,41 @@ window.et_builder_product_name = 'Divi';
 				this_el = this,
 				$map = this.$el.find('.et-pb-map');
 
-				if ( typeof google !== 'undefined' && $map.length ) {
+				if (typeof google !== 'undefined' && $map.length) {
 					view_cid = this.view_cid;
 
-					var $address = this.$el.find('.et_pb_address'),
-						$address_lat = this.$el.find('.et_pb_address_lat'),
-						$address_lng = this.$el.find('.et_pb_address_lng'),
-						$find_address = this.$el.find('.et_pb_find_address'),
-						$zoom_level = this.$el.find('.et_pb_zoom_level'),
-						geocoder = new google.maps.Geocoder(),
-						markers = {};
+					var $address = this.$el.find('.et_pb_address');
+					var $address_lat = this.$el.find('.et_pb_address_lat');
+					var $address_lng = this.$el.find('.et_pb_address_lng');
+					var $find_address = this.$el.find('.et_pb_find_address');
+					var $zoom_level = this.$el.find('.et_pb_zoom_level');
+					var geocoder = new google.maps.Geocoder();
+					var markers = {};
+					var map_zoom_level = !isNaN(parseInt($zoom_level.val())) ? parseInt($zoom_level.val()) : 18;
+
 					var geocode_address = function() {
 						var address = $address.val();
-						if ( address.length <= 0 ) {
+						if (address.length <= 0) {
 							return;
 						}
-						geocoder.geocode( { 'address': address}, function(results, status) {
+						geocoder.geocode({'address': address}, function(results, status) {
 							if (status == google.maps.GeocoderStatus.OK) {
-								var result            = results[0],
-									location          = result.geometry.location,
-									address_is_latlng = this_el.is_latlng( address );
+								var result            = results[0];
+								var location          = result.geometry.location;
+								var address_is_latlng = this_el.is_latlng(address);
 
 								// If user passes valid lat lng instead of address, override geocode with given lat & lng
-								if ( address_is_latlng ) {
+								if (address_is_latlng) {
 									location = address_is_latlng;
 								}
 
-								if ( ! isNaN( location.lat() ) && ! isNaN( location.lng() ) ) {
+								if (!isNaN(location.lat()) && !isNaN(location.lng())) {
 									$address.val( result.formatted_address);
 									$address_lat.val(location.lat());
 									$address_lng.val(location.lng());
-									update_center( location );
+									update_center(location);
 								} else {
-									alert( et_pb_options.map_pin_address_invalid );
+									alert(et_pb_options.map_pin_address_invalid);
 								}
 							} else {
 								alert( et_pb_options.geocode_error + ': ' + status);
@@ -4888,71 +5055,69 @@ window.et_builder_product_name = 'Divi';
 						});
 					}
 
-					var update_center = function( LatLng ) {
-						$map.map.setCenter( LatLng );
+					var update_center = function(LatLng) {
+						$map.map.setCenter(LatLng);
 					}
 
-					var update_zoom = function () {
-						$map.map.setZoom( parseInt( $zoom_level.val() ) );
+					var update_zoom = function() {
+						$map.map.setZoom(map_zoom_level);
 					}
 
-					$address.on('blur', geocode_address );
+					$address.on('blur', geocode_address);
 					$find_address.on('click', function(e){
 						e.preventDefault();
 					});
 
-					$zoom_level.on('blur', update_zoom );
+					$zoom_level.on('blur', update_zoom);
 
-					setTimeout( function() {
-						$map.map = new google.maps.Map( $map[0], {
-							zoom: parseInt( $zoom_level.val() ),
+					setTimeout(function() {
+						$map.map = new google.maps.Map($map[0], {
+							zoom: map_zoom_level,
 							mapTypeId: google.maps.MapTypeId.ROADMAP
 						});
 
-						if ( '' != $address_lat.val() && '' != $address_lng.val() ) {
-							update_center( new google.maps.LatLng( $address_lat.val(), $address_lng.val() ) );
+						if ('' !== $address_lat.val() && '' !== $address_lng.val()) {
+							update_center(new google.maps.LatLng($address_lat.val(), $address_lng.val()));
 						}
 
-						if ( '' != $zoom_level ) {
+						if ('' !== $zoom_level) {
 							update_zoom();
 						}
 
-						setTimeout( function() {
-							var map_pins = ET_PageBuilder_Layout.getChildViews( view_cid );
-							if ( _.size( map_pins ) ) {
-								_.each( map_pins, function( map_pin, key ) {
+						setTimeout(function() {
+							var map_pins = ET_PageBuilder_Layout.getChildViews(view_cid);
+							if (_.size(map_pins)) {
+								_.each(map_pins, function(map_pin, key) {
 
 									// Skip current map pin if it has no lat or lng, as it will trigger maximum call stack exceeded
-									if ( _.isUndefined( map_pin.model.get('et_pb_pin_address_lat') ) || _.isUndefined( map_pin.model.get('et_pb_pin_address_lng') ) ) {
+									if (_.isUndefined(map_pin.model.get('et_pb_pin_address_lat')) || _.isUndefined(map_pin.model.get('et_pb_pin_address_lng'))) {
 										return;
 									}
 
 									markers[key] = new google.maps.Marker({
 										map: $map.map,
-										position: new google.maps.LatLng( parseFloat( map_pin.model.get('et_pb_pin_address_lat') ) , parseFloat( map_pin.model.get('et_pb_pin_address_lng') ) ),
+										position: new google.maps.LatLng(parseFloat(map_pin.model.get('et_pb_pin_address_lat')), parseFloat(map_pin.model.get('et_pb_pin_address_lng'))),
 										title: map_pin.model.get('et_pb_title'),
-										icon: { url: et_pb_options.images_uri + '/marker.png', size: new google.maps.Size( 46, 43 ), anchor: new google.maps.Point( 16, 43 ) },
-										shape: { coord: [1, 1, 46, 43], type: 'rect' }
+										icon: {url: et_pb_options.images_uri + '/marker.png', size: new google.maps.Size( 46, 43 ), anchor: new google.maps.Point(16, 43)},
+										shape: {coord: [1, 1, 46, 43], type: 'rect'}
 									});
 								});
 							}
-						}, 500 );
+						}, 500);
 
-						google.maps.event.addListener( $map.map, 'center_changed', function() {
+						google.maps.event.addListener($map.map, 'center_changed', function() {
 							var center = $map.map.getCenter();
-							$address_lat.val( center.lat() );
-							$address_lng.val( center.lng() );
+							$address_lat.val(center.lat());
+							$address_lng.val(center.lng());
 						});
 
-						google.maps.event.addListener( $map.map, 'zoom_changed', function() {
+						google.maps.event.addListener($map.map, 'zoom_changed', function() {
 							var zoom_level = $map.map.getZoom();
-							$zoom_level.val( zoom_level );
+							$zoom_level.val(zoom_level);
 						});
-
-					}, 200 );
+					}, 200);
 				}
 			}
-
 		} );
 
 		ET_PageBuilder.AdvancedModuleSettingsView = window.wp.Backbone.View.extend( {
@@ -4973,14 +5138,18 @@ window.et_builder_product_name = 'Divi';
 
 				this.$content_textarea = this.$el.siblings('.et-pb-option-main-content').find('#et_pb_content_main');
 
-				this.$sortable_options.sortable( {
-					axis : 'y',
-					cancel : '.et-pb-advanced-setting-remove, .et-pb-advanced-setting-options',
-					update : function( event, ui ) {
-						ET_PageBuilder_Events.trigger( 'et-advanced-module:updated' );
-						ET_PageBuilder_Events.trigger( 'et-advanced-module:updated_order' );
-					}
-				} );
+				if (!_.includes(['et_pb_column', 'et_pb_column_inner'], this.module_type)) {
+					this.$sortable_options.sortable({
+						axis : 'y',
+						cancel : '.et-pb-advanced-setting-remove, .et-pb-advanced-setting-options',
+						update : function(event, ui) {
+							ET_PageBuilder_Events.trigger('et-advanced-module:updated');
+							ET_PageBuilder_Events.trigger('et-advanced-module:updated_order');
+						}
+					});
+				} else {
+					this.$sortable_options.addClass('et-pb-sortable-options--disabled');
+				}
 
 				this.$add_sortable_item = this.$el.find( '.et-pb-add-sortable-option' ).addClass( 'et-pb-add-sortable-initial' );
 			},
@@ -5062,37 +5231,48 @@ window.et_builder_product_name = 'Divi';
 				if ( content !== '' )
 					this.$add_sortable_item.removeClass( 'et-pb-add-sortable-initial' );
 
-				_.each( matches, function ( shortcode, shortcode_index ) {
-					var shortcode_element = shortcode.match( inner_reg_exp ),
-						shortcode_name = shortcode_element[2],
-						shortcode_attributes = shortcode_element[3] !== ''
-							? window.wp.shortcode.attrs( shortcode_element[3] )
-							: '',
-						shortcode_content = shortcode_element[5],
-						module_cid = ET_PageBuilder_Layout.generateNewId(),
-						module_settings,
-						prefixed_attributes = {},
-						found_inner_shortcodes = typeof shortcode_content !== 'undefined' && shortcode_content !== '' && shortcode_content.match( reg_exp ),
-						name_changes = et_pb_options.et_pb_module_settings_migrations.name_changes;
+				_.each(matches, function (shortcode, shortcode_index) {
+					var shortcode_element      = shortcode.match(inner_reg_exp);
+					var shortcode_name         = shortcode_element[2];
+					var shortcode_attributes   = shortcode_element[3] !== ''
+							? window.wp.shortcode.attrs(shortcode_element[3] + ' ' + shortcode_index)
+							: '';
+					var shortcode_content      = shortcode_element[5];
+					var module_cid             = ET_PageBuilder_Layout.generateNewId();
+					var prefixed_attributes    = {};
+					var found_inner_shortcodes = typeof shortcode_content !== 'undefined' && shortcode_content !== '' && shortcode_content.match(reg_exp);
+					var name_changes           = et_pb_options.et_pb_module_settings_migrations.name_changes;
+					var isColumnItem           = _.includes(['et_pb_column', 'et_pb_column_inner'], shortcode_name);
+					var module_settings;
 
 					module_settings = {
 						type : 'module',
 						module_type : module_type,
-						cid : ET_PageBuilder_Layout.generateNewId(),
+						cid : module_cid,
 						view : this_el,
 						created : 'auto',
 						mode : 'advanced',
 						parent : this_el.attributes['cid'],
 						parent_cid : this_el.model.model.attributes['cid']
 					};
+					var parent_view = ET_PageBuilder_Layout.getView(this_el.model.model.attributes['cid']);
+
+					if (isColumnItem) {
+						var $columns = $(parent_view.$el).find('.et-pb-column');
+
+						if (!_.isUndefined($columns[ shortcode_index ])) {
+							module_settings.column_cid = $($columns[ shortcode_index ]).data('cid');
+						}
+					}
 
 					if ( _.isObject( shortcode_attributes['named'] ) ) {
 						for ( var key in shortcode_attributes['named'] ) {
 							var prefixed_key = key !== 'admin_label' ? 'et_pb_' + key : key,
 								setting_value;
 
-							if ( shortcode_name === 'column' && prefixed_key === 'et_pb_type' )
+							if (isColumnItem && prefixed_key === 'et_pb_type') {
 								prefixed_key = 'layout';
+							}
 
 							setting_value = shortcode_attributes['named'][key];
 
@@ -5102,13 +5282,13 @@ window.et_builder_product_name = 'Divi';
 							prefixed_attributes[prefixed_key] = setting_value;
 						}
 
-						module_settings['et_pb_content_new'] = shortcode_content;
+						module_settings['et_pb_content'] = shortcode_content;
 
 						module_settings = _.extend( module_settings, prefixed_attributes );
 					}
 
 					if ( ! found_inner_shortcodes ) {
-						module_settings['et_pb_content_new'] = shortcode_content;
+						module_settings['et_pb_content'] = shortcode_content;
 					}
 
 					// BEGIN Settings Migrations
@@ -5189,17 +5369,22 @@ window.et_builder_product_name = 'Divi';
 				view = new ET_PageBuilder.AdvancedModuleSettingEditViewContainer( {
 					view : this,
 					attributes : {
-						show_settings_clicked : ( event ? true : false )
+						show_settings_clicked : ( event ? true : false ),
+						'data-module_type': this.model.get('module_type')
 					}
 				} );
 
 				$('.et_pb_modal_settings_container').after( view.render().el );
+
+				et_pb_open_current_tab();
 			},
 
 			removeView : function( event ) {
 				if ( event ) event.preventDefault();
 
-				this.child_view.remove();
+				if (!_.isUndefined(this.child_view)) {
+					this.child_view.remove();
+				}
 
 				this.remove();
 
@@ -5216,7 +5401,9 @@ window.et_builder_product_name = 'Divi';
 			className : 'et-sortable-title',
 
 			initialize : function() {
-				template_name = '#et-builder-advanced-setting-' + this.model.get( 'module_type' ) + '-title';
+				module_type_processed = 'et_pb_column_inner' === this.model.get('module_type') ? 'et_pb_column' : this.model.get('module_type');
+
+				template_name = '#et-builder-advanced-setting-' + module_type_processed + '-title';
 
 				this.template = _.template( $( template_name ).html() );
 
@@ -5335,16 +5522,17 @@ window.et_builder_product_name = 'Divi';
 
 								if ( current_value !== default_value ) {
 									$reset_button.addClass( 'et-pb-reset-icon-visible' );
-
-									if ( has_preview ) {
-										$preview.removeClass('et-pb-option-preview--empty');
-									}
 								} else {
 									$reset_button.removeClass( 'et-pb-reset-icon-visible' );
 
 									if ( has_preview ) {
 										$preview.addClass('et-pb-option-preview--empty');
 									}
+								}
+
+								// Preview should be rendered as non-empty even if current color is default
+								if (has_preview && '' !== current_value) {
+									$preview.removeClass('et-pb-option-preview--empty');
 								}
 
 								if ( has_preview) {
@@ -5408,11 +5596,14 @@ window.et_builder_product_name = 'Divi';
 
 							$option_container.find('.et-pb-option-preview-button--delete').click( function(e) {
 								e.stopPropagation();
+								var default_value = et_pb_get_default_setting_value($this).toLowerCase();
 
 								// Remove clear marker class name to make color validation works again
-								$this.wpColorPicker( 'color', '' ).val( '' ).addClass( 'et-pb-is-cleared' );
+								$this.wpColorPicker('color', default_value).val(default_value).addClass('et-pb-is-cleared');
 
-								$option_container.find('.et-pb-option-preview').removeAttr('style').addClass('et-pb-option-preview--empty');
+								if ('' === default_value) {
+									$option_container.find('.et-pb-option-preview').removeAttr('style').addClass('et-pb-option-preview--empty');
+								}
 							});
 						}
 					} );
@@ -5640,7 +5831,7 @@ window.et_builder_product_name = 'Divi';
 						}
 
 						if ( $social_network_picker.val().length ) {
-							var $social_network_title = $main_settings.find('#et_pb_content_new'),
+							var $social_network_title = $main_settings.find('#et_pb_content'),
 								$social_network_icon_color = $main_settings.find('#et_pb_background_color');
 
 							if ( $social_network_title.length ) {
@@ -5733,8 +5924,8 @@ window.et_builder_product_name = 'Divi';
 				if ( event ) event.preventDefault();
 
 				// remove advanced tab WYSIWYG, only if the close button is clicked
-				if ( this.$el.find( '#et_pb_content_new' ) && event )
-					et_pb_tinymce_remove_control( 'et_pb_content_new' );
+				if ( this.$el.find( '#et_pb_content' ) && event )
+					et_pb_tinymce_remove_control( 'et_pb_content' );
 
 				et_pb_hide_active_color_picker( this );
 
@@ -5777,8 +5968,8 @@ window.et_builder_product_name = 'Divi';
 						return true;
 					}
 
-					setting_value = $this_el.is('#et_pb_content_new')
-						? et_pb_get_content( 'et_pb_content_new' )
+					setting_value = $this_el.is('#et_pb_content')
+						? et_pb_get_content( 'et_pb_content' )
 						: $this_el.val();
 
 					// Text align specific issue: $('select').val() chooses first value if there is no selected option found.
@@ -5848,12 +6039,19 @@ window.et_builder_product_name = 'Divi';
 					parent_view.model.unset( 'value_changes' );
 				}
 
-				this.model.set( attributes, { silent : true } );
+				// Column settings are stored in child modules when editing Row. Save them into appropriate column
+				if (!_.isUndefined(this_view.model.attributes.column_cid)) {
+					var additionalModuleToUpdate = ET_PageBuilder_Layout.getView(this_view.model.attributes.column_cid);
+
+					additionalModuleToUpdate.model.set(attributes, { silent : true });
+				}
+
+				this.model.set(attributes, { silent : true });
 
 				ET_PageBuilder_Events.trigger( 'et-advanced-module:updated' );
 				ET_PageBuilder_Events.trigger( 'et-advanced-module:saved' );
 
-				et_pb_tinymce_remove_control( 'et_pb_content_new' );
+				et_pb_tinymce_remove_control( 'et_pb_content' );
 
 				this.removeView();
 			}
@@ -5865,7 +6063,9 @@ window.et_builder_product_name = 'Divi';
 			initialize : function() {
 				this.model = this.options.view.options.view.model;
 
-				this.template = _.template( $( '#et-builder-advanced-setting-' + this.model.get( 'module_type' ) ).html() );
+				module_type_processed = 'et_pb_column_inner' === this.model.get('module_type') ? 'et_pb_column' : this.model.get('module_type');
+
+				this.template = _.template($('#et-builder-advanced-setting-' + module_type_processed).html());
 			},
 
 			events : {
@@ -5880,7 +6080,7 @@ window.et_builder_product_name = 'Divi';
 
 				this.$el.find( '.et-pb-main-settings' ).addClass( 'et-pb-main-settings-advanced' );
 
-				$content_textarea = this.$el.find( 'div#et_pb_content_new' );
+				$content_textarea = this.$el.find( 'div#et_pb_content' );
 
 				if ( $content_textarea.length ) {
 					$content_textarea_container = $content_textarea.closest( '.et-pb-option-container' );
@@ -5889,16 +6089,16 @@ window.et_builder_product_name = 'Divi';
 
 					$content_textarea.remove();
 
-					$content_textarea_container.prepend( et_pb_content_html );
+					$content_textarea_container.prepend( $et_pb_content.find('#et_pb_content_editor').html() );
 
 					setTimeout( function() {
 						if ( typeof window.switchEditors !== 'undefined' )
-							window.switchEditors.go( 'et_pb_content_new', et_get_editor_mode() );
+							window.switchEditors.go( 'et_pb_content', et_get_editor_mode() );
 
 
-						et_pb_set_content('et_pb_content_new', content);
+						et_pb_set_content('et_pb_content', content);
 
-						window.wpActiveEditor = 'et_pb_content_new';
+						window.wpActiveEditor = 'et_pb_content';
 					}, 300 );
 				}
 
@@ -5941,46 +6141,52 @@ window.et_builder_product_name = 'Divi';
 			},
 
 			render : function() {
-				var parent_views = ET_PageBuilder_Layout.getParentViews( this.model.get( 'parent' ) );
+				var parent_views = ET_PageBuilder_Layout.getParentViews(this.model.get('parent'));
 
-				this.$el.html( this.template( this.model.attributes ) );
+				this.$el.html(this.template(this.model.attributes));
 
-				if ( typeof this.model.attributes.et_pb_global_module !== 'undefined' || ( typeof this.model.attributes.et_pb_template_type !== 'undefined' && 'module' === this.model.attributes.et_pb_template_type && 'global' === et_pb_options.is_global_template ) ) {
-					this.$el.addClass( 'et_pb_global' );
+				if (typeof this.model.attributes.et_pb_global_module !== 'undefined' || (typeof this.model.attributes.et_pb_template_type !== 'undefined' && 'module' === this.model.attributes.et_pb_template_type && 'global' === et_pb_options.is_global_template)) {
+					this.$el.addClass('et_pb_global');
 				}
 
-				if ( typeof this.model.get( 'et_pb_locked' ) !== 'undefined' && this.model.get( 'et_pb_locked' ) === 'on' ) {
-					_.each( parent_views, function( parent ) {
-						parent.$el.addClass( 'et_pb_children_locked' );
-					} );
+				if (typeof this.model.get('et_pb_locked') !== 'undefined' && this.model.get('et_pb_locked') === 'on') {
+					_.each(parent_views, function(parent) {
+						parent.$el.addClass('et_pb_children_locked');
+					});
 				}
 
-				if ( typeof this.model.get( 'et_pb_parent_locked' ) !== 'undefined' && this.model.get( 'et_pb_parent_locked' ) === 'on' ) {
-					this.$el.addClass( 'et_pb_parent_locked' );
+				if (typeof this.model.get('et_pb_parent_locked') !== 'undefined' && this.model.get('et_pb_parent_locked') === 'on') {
+					this.$el.addClass('et_pb_parent_locked');
 				}
 
-				if ( ET_PageBuilder_Layout.isModuleFullwidth( this.model.get( 'module_type' ) ) )
-					this.$el.addClass( 'et_pb_fullwidth_module' );
-
-				if ( typeof this.model.get( 'pasted_module' ) !== 'undefined' && this.model.get( 'pasted_module' ) ) {
-					et_pb_handle_clone_class( this.$el );
-				}
-
-				if ( ET_PageBuilder_AB_Testing.is_active() ) {
-					if ( ET_PageBuilder_AB_Testing.is_subject( this.model ) ) {
-						this.$el.addClass( 'et_pb_ab_subject' );
+				if (ET_PageBuilder_AB_Testing.is_active()) {
+					if (ET_PageBuilder_AB_Testing.is_subject(this.model)) {
+						this.$el.addClass('et_pb_ab_subject');
 
 						// Apply subject rank coloring
-						ET_PageBuilder_AB_Testing.set_subject_rank_coloring( this );
+						ET_PageBuilder_AB_Testing.set_subject_rank_coloring(this);
 					}
 
-					if ( ET_PageBuilder_AB_Testing.is_goal( this.model ) ) {
-						this.$el.addClass( 'et_pb_ab_goal' );
+					if (ET_PageBuilder_AB_Testing.is_goal(this.model)) {
+						this.$el.addClass('et_pb_ab_goal');
 					}
 
-					if ( ! ET_PageBuilder_AB_Testing.is_user_has_permission( this.model.get( 'cid' ), 'module', this.model ) ) {
-						this.$el.addClass( 'et_pb_ab_no_permission' )
+					if (! ET_PageBuilder_AB_Testing.is_user_has_permission(this.model.get('cid'), 'module', this.model)) {
+						this.$el.addClass('et_pb_ab_no_permission');
 					}
+				}
+
+				// we have enough data to render removed component view at this point
+				if ('removed' === this.model.get('component_status')) {
+					return this;
+				}
+
+				if (ET_PageBuilder_Layout.isModuleFullwidth(this.model.get('module_type'))) {
+					this.$el.addClass('et_pb_fullwidth_module');
+				}
+
+				if (typeof this.model.get('pasted_module') !== 'undefined' && this.model.get('pasted_module')) {
+					et_pb_handle_clone_class(this.$el);
 				}
 
 				return this;
@@ -6923,6 +7129,10 @@ window.et_builder_product_name = 'Divi';
 					event.preventDefault();
 				}
 
+				if (!et_pb_can_module_add_siblings(this.model)) {
+					return;
+				}
+
 				var parent            = _.isUndefined( parent ) ? this.model.get( 'parent' ) : parent;
 				var clipboard_type    = _.isUndefined( clipboard_type ) ? this.getClipboardType() : clipboard_type;
 				var has_cloned_cid    = _.isUndefined( has_cloned_cid ) ? true : has_cloned_cid;
@@ -7052,8 +7262,10 @@ window.et_builder_product_name = 'Divi';
 					global_module_elements = [ 'et_pb_global_parent', 'global_parent_cid' ];
 
 				// Add newly generated cid and parent to the pasted view
-				view.cid    = cid;
-				view.parent = parent;
+				view.cid     = cid;
+				view.parent  = parent;
+				// set `created` to manually to not open module settings when pasted
+				view.created = 'manually';
 
 				if ( typeof is_main_parent !== 'undefined' && 'main_parent' === is_main_parent ) {
 					view.pasted_module = true;
@@ -7228,7 +7440,8 @@ window.et_builder_product_name = 'Divi';
 							if ( this.hasOptionSupport( [ "section", "row_inner", "row", "module" ] ) &&
 								 this.et_pb_has_storage_support &&
 								 this.has_compatible_clipboard_content &&
-								 is_ab_allowed_paste ) {
+								 is_ab_allowed_paste &&
+								 et_pb_can_module_add_siblings(this.options.model) ) {
 								has_option = true;
 							}
 						break;
@@ -7556,7 +7769,7 @@ window.et_builder_product_name = 'Divi';
 				this.listenTo( ET_PageBuilder_Events, 'et-pb-loading:ended', this.endLoadingAnimation );
 				this.listenTo( ET_PageBuilder_Events, 'et-pb-content-updated', this.recalculateModulesOrder );
 				this.listenTo( ET_PageBuilder_Events, 'et-advanced-module:updated_order', this.updateAdvancedModulesOrder );
-				this.listenTo( ET_PageBuilder_Events, 'et-pb-content-updated', this.updateYoastContent );
+				this.listenTo(ET_PageBuilder_Events, 'et-pb-content-updated', _.debounce(this.updateYoastContent, 500));
 
 				this.$builder_toggle_button = $( 'body' ).find( '#et_pb_toggle_builder' );
 				this.$builder_toggle_button_wrapper = $( 'body' ).find( '.et_pb_toggle_builder_wrapper' );
@@ -7609,6 +7822,19 @@ window.et_builder_product_name = 'Divi';
 				this.$loading_animation.hide();
 
 				this.isLoading = false;
+				try {
+					// Only triggered when reloading the page using the following line in devtools console:
+					// localStorage.setItem('et_page_loading', Date.now()); window.location.reload();
+					var started = window.localStorage.getItem('et_page_loading');
+					if (started) {
+						console.log(
+							'Builder load : %c%f',
+							'color: red',
+							parseInt((Date.now() - parseInt(started, 10)) / 10, 10) / 100
+						);
+						window.localStorage.removeItem('et_page_loading');
+					}
+				} catch (e) {}
 			},
 
 			pageBuilderIsActive : function() {
@@ -7696,6 +7922,49 @@ window.et_builder_product_name = 'Divi';
 
 				// Enable history saving and set meta for history
 				ET_PageBuilder_Visualize_Histories.setHistoryMeta( verb, noun, noun_alias, addition );
+			},
+
+			codeModuleContentPrepCB : function(match, p1) {
+				var prepped_content = p1;
+				// convert <br /> tags into placeholder so wpautop will leave them alone
+				prepped_content = prepped_content.replace( /<br[\s]?[\/]?>/g, '<!–- [et_pb_br_holder] -–>');
+
+				// convert <p> tag to <pee> tag, so wpautop will leave them alone,
+				// *and* so that we can clearly spot the <p> tags that wpautop adds
+				// so we can quickly remove them.
+				prepped_content = prepped_content.replace( /<p /g, '<pee ' );
+				prepped_content = prepped_content.replace( /<p>/g, '<pee>' );
+				prepped_content = prepped_content.replace( /<\/p>/g, '</pee>' );
+
+				return match.replace(p1, prepped_content);
+			},
+
+			codeModuleContentPrep : function(content) {
+				// prep code module content for wpautop
+				content = content.replace(/\[et_pb_code.*?\]([^]*)\[\/et_pb_code\]/g, this.codeModuleContentPrepCB);
+				content = content.replace(/\[et_pb_fullwidth_code.*?\]([^]*)\[\/et_pb_fullwidth_code\]/g, this.codeModuleContentPrepCB);
+
+				return content;
+			},
+
+			codeModuleContentUnPrepCB : function(match, p1){
+				var prepped_content = p1;
+				prepped_content = prepped_content.replace( /\n/g, '' );
+				prepped_content = prepped_content.replace( /<p>/g, '' );
+				prepped_content = prepped_content.replace( /<\/p>/g, '' );
+				prepped_content = prepped_content.replace( /<!–- \[et_pb_br_holder\] -–>/g, '<br />' );
+				prepped_content = prepped_content.replace( /<pee/g, '<p' );
+				prepped_content = prepped_content.replace( /<\/pee>/g, '</p>' );
+
+				return match.replace(p1, prepped_content);
+			},
+
+			codeModuleContentUnPrep : function(content){
+				// unprep code module
+				content = content.replace(/\[et_pb_code.*?\]([^]*)\[\/et_pb_code\]/g, this.codeModuleContentUnPrepCB);
+				content = content.replace(/\[et_pb_fullwidth_code.*?\]([^]*)\[\/et_pb_fullwidth_code\]/g, this.codeModuleContentUnPrepCB);
+
+				return content;
 			},
 
 			reviseHistories : function() {
@@ -8007,25 +8276,25 @@ window.et_builder_product_name = 'Divi';
 				var module_id = ET_PageBuilder_Layout.generateNewId(),
 					this_el = this;
 
-				ET_PageBuilder_Events.trigger( 'et-pb-loading:started' );
+				ET_PageBuilder_Events.trigger('et-pb-loading:started');
 
-				setTimeout( function() {
+				setTimeout(function() {
 					var fix_shortcodes = true,
 						content = '';
 
 					// check whether the tinyMCE container is loaded already if not - try again.
-					if ( typeof window.tinyMCE !== 'undefined' && window.tinyMCE.get( 'content' ) && ! window.tinyMCE.get( 'content' ).isHidden() && ! $( 'iframe#content_ifr' ).length ) {
+					if (typeof window.tinyMCE !== 'undefined' && window.tinyMCE.get('content') && ! window.tinyMCE.get('content').isHidden() && ! $('iframe#content_ifr').length) {
 						et_pb_bulder_loading_attempts++;
 
 						//show failure modal after 30 unsuccessful attempts
-						if ( 30 < et_pb_bulder_loading_attempts ) {
-							var $failure_notice_template = $( '#et-builder-failure-notice-template' );
+						if (30 < et_pb_bulder_loading_attempts) {
+							var $failure_notice_template = $('#et-builder-failure-notice-template');
 
-							ET_PageBuilder_Events.trigger( 'et-pb-loading:ended' );
+							ET_PageBuilder_Events.trigger('et-pb-loading:ended');
 
-							$( '#et_pb_main_container' ).removeClass( 'et_pb_loading_animation' );
+							$('#et_pb_main_container').removeClass('et_pb_loading_animation');
 
-							$( 'body' ).addClass( 'et_pb_stop_scroll' ).append( $failure_notice_template.html() );
+							$('body').addClass('et_pb_stop_scroll').append($failure_notice_template.html());
 
 							return;
 						}
@@ -8038,56 +8307,67 @@ window.et_builder_product_name = 'Divi';
 					 * Visual editor adds paragraph tags around shortcodes,
 					 * it causes &nbsp; to be inserted into a module content area
 					 */
-					content = et_pb_get_content( 'content', fix_shortcodes );
+					content = et_pb_get_content('content', fix_shortcodes);
 
 					// Enable history saving and set meta for history
-					if ( content !== '' ) {
-						this_el.allowHistorySaving( 'loaded', 'page' );
+					if (content !== '') {
+						this_el.allowHistorySaving('loaded', 'page');
 					}
 
 					// Save page loaded
-					this_el.addHistory( content );
+					this_el.addHistory(content);
 
-					if  ( this_el.pageBuilderIsActive() ) {
-						if ( -1 === content.indexOf( '[et_pb_') ) {
+					if (this_el.pageBuilderIsActive()) {
+						if (-1 === content.indexOf('[et_pb_') && (et_pb_options.is_divi_library !== "1" || et_pb_options.layout_type !== 'module')) {
 							ET_PageBuilder_App.reInitialize();
-						} else if ( -1 !== content.indexOf( 'specialty_placeholder') ) {
-							this_el.createLayoutFromContent( et_prepare_template_content( content ) );
-							$( '.et_pb_section_specialty' ).append( this_el.template_button() );
+						} else if (-1 !== content.indexOf('specialty_placeholder')) {
+							this_el.createLayoutFromContent(et_prepare_template_content(content));
+							$('.et_pb_section_specialty').append(this_el.template_button());
 						} else {
-							this_el.createLayoutFromContent( et_prepare_template_content( content ) );
+							this_el.createLayoutFromContent(et_prepare_template_content(content));
 						}
 					} else {
-						this_el.createLayoutFromContent( content );
+						this_el.createLayoutFromContent(content);
 					}
 
-					et_pb_maybe_apply_wpautop_to_models( et_get_editor_mode(), 'initial_load' );
+					et_pb_maybe_apply_wpautop_to_models(et_get_editor_mode(), 'initial_load');
 
-					ET_PageBuilder_Events.trigger( 'et-pb-content-updated' );
+					ET_PageBuilder_Events.trigger('et-pb-content-updated');
 
-					ET_PageBuilder_Events.trigger( 'et-pb-loading:ended' );
+					ET_PageBuilder_Events.trigger('et-pb-loading:ended');
 
-					$( '#et_pb_main_container' ).addClass( 'et_pb_loading_animation' );
+					$('#et_pb_main_container').addClass('et_pb_loading_animation');
 
-					setTimeout( function() {
-						$( '#et_pb_main_container' ).removeClass( 'et_pb_loading_animation' );
-					}, 500 );
+					setTimeout(function() {
+						$('#et_pb_main_container').removeClass('et_pb_loading_animation');
+					}, 500);
 
 					// start listening to any collection events after all modules have been generated
-					this_el.listenTo( this_el.collection, 'change reset add', _.debounce( this_el.saveAsShortcode, 128 ) );
+					this_el.listenTo(this_el.collection, 'change reset add', _.debounce(this_el.saveAsShortcode, 128));
 
 					ET_PageBuilder_AB_Testing.update();
-				}, 500 );
+				}, 500);
 			},
 
 			wp_regexp_not_global : _.memoize( function( tag ) {
 				return new RegExp( '\\[(\\[?)(' + tag + ')(?![\\w-])([^\\]\\/]*(?:\\/(?!\\])[^\\]\\/]*)*?)(?:(\\/)\\]|\\](?:([^\\[]*(?:\\[(?!\\/\\2\\])[^\\[]*)*)(\\[\\/\\2\\]))?)(\\]?)' );
 			}),
 
-			getShortCodeParentTags : function () {
+			getShortCodeParentTags : function (append_shortcodes) {
 				var shortcodes = 'et_pb_section|et_pb_row|et_pb_column|et_pb_column_inner|et_pb_row_inner'.split('|');
 
-				shortcodes = shortcodes.concat( et_pb_options.et_builder_module_parent_shortcodes.split('|') );
+				shortcodes = shortcodes.concat(et_pb_options.et_builder_module_parent_shortcodes.split('|'));
+
+				// append additional shortcodes if defined
+				if (!_.isUndefined(append_shortcodes) && '' !== append_shortcodes) {
+					var append_array = append_shortcodes.split('|');
+					var extra_shortcodes = _.difference(append_array, shortcodes);
+
+					if (!_.isEmpty(extra_shortcodes)) {
+						shortcodes = _.union(shortcodes, extra_shortcodes);
+					}
+				}
+
 				shortcodes = shortcodes.join('|');
 				return shortcodes;
 			},
@@ -8105,81 +8385,92 @@ window.et_builder_product_name = 'Divi';
 				return raw_content_shortcodes_array;
 			},
 			//ignore_template_tag, current_row_cid, global_id, is_reinit, after_section, global_parent
-			createLayoutFromContent : function( content, parent_cid, inner_shortcodes, additional_options, parent_address ) {
-				var this_el = this,
-					et_pb_shortcodes_tags = typeof inner_shortcodes === 'undefined' || '' === inner_shortcodes ? this.getShortCodeParentTags() : this.getShortCodeChildTags(),
-					reg_exp = window.wp.shortcode.regexp( et_pb_shortcodes_tags ),
-					inner_reg_exp = this.wp_regexp_not_global( et_pb_shortcodes_tags ),
-					matches = content.match( reg_exp ),
-					et_pb_raw_shortcodes = this.getShortCodeRawContentTags(),
-					additional_options_received = typeof additional_options === 'undefined' ? {} : additional_options;
+			createLayoutFromContent : function(content, parent_cid, inner_shortcodes, additional_options, parent_address) {
+				var this_el = this;
+				var all_shortcodes_matches = !_.isUndefined(content) && '' !== content ? content.match(/\[([^\W\/\[\]\x00-\x20=]+)/g) : '';
+				var all_shortcodes_in_content = all_shortcodes_matches && _.isArray(all_shortcodes_matches) ? all_shortcodes_matches.join('|').replace(/\[/g, '') : '';
+				var all_registered_shortcodes = this.getShortCodeParentTags().split('|');
+				var et_pb_shortcodes_tags = typeof inner_shortcodes === 'undefined' || '' === inner_shortcodes ? this.getShortCodeParentTags(all_shortcodes_in_content) : this.getShortCodeChildTags();
+				var reg_exp = window.wp.shortcode.regexp(et_pb_shortcodes_tags);
+				var inner_reg_exp = this.wp_regexp_not_global(et_pb_shortcodes_tags);
+				var matches = content.match(reg_exp);
+				var et_pb_raw_shortcodes = this.getShortCodeRawContentTags();
+				var additional_options_received = typeof additional_options === 'undefined' ? {} : additional_options;
 
-				_.each( matches, function ( shortcode, index ) {
-					var shortcode_element = shortcode.match( inner_reg_exp ),
-						shortcode_name = shortcode_element[2],
-						shortcode_attributes = shortcode_element[3] !== ''
-							? window.wp.shortcode.attrs( shortcode_element[3] )
-							: '',
-						shortcode_content = shortcode_element[5],
-						module_cid = ET_PageBuilder_Layout.generateNewId(),
-						module_settings,
-						prefixed_attributes = {},
-						found_inner_shortcodes = typeof shortcode_content !== 'undefined' && shortcode_content !== '' && shortcode_content.match( reg_exp ),
-						global_module_id = '',
-						is_structure_element = $.inArray( shortcode_name, [ 'et_pb_section', 'et_pb_row', 'et_pb_column', 'et_pb_row_inner', 'et_pb_column_inner' ] ) > -1 ;
+				_.each(matches, function(shortcode, index) {
+					var shortcode_element = shortcode.match(inner_reg_exp);
+					var original_shortcode_name = shortcode_element[2];
+					var shortcode_name = shortcode_element[2];
+					var shortcode_attributes = shortcode_element[3] !== ''
+							? window.wp.shortcode.attrs(shortcode_element[3])
+							: '';
+					var shortcode_content = shortcode_element[5];
+					var module_cid = ET_PageBuilder_Layout.generateNewId();
+					var module_settings;
+					var prefixed_attributes = {};
+					var is_structure_element = $.inArray(shortcode_name, [ 'et_pb_section', 'et_pb_row', 'et_pb_column', 'et_pb_row_inner', 'et_pb_column_inner' ]) > -1;
+					var found_inner_shortcodes = is_structure_element && typeof shortcode_content !== 'undefined' && shortcode_content !== '' && shortcode_content.match(reg_exp);
+					var global_module_id = '';
+					var is_unregistered_shortcode = !is_structure_element && _.indexOf(all_registered_shortcodes, shortcode_name) === -1;
 
-					if ( is_structure_element ) {
-						shortcode_name = shortcode_name.replace( 'et_pb_', '' );
+					if (is_structure_element) {
+						shortcode_name = shortcode_name.replace('et_pb_', '');
 					}
 
 					module_settings = {
 						type : shortcode_name,
 						cid : module_cid,
 						created : 'manually',
-						module_type : shortcode_name
+						module_type : shortcode_name,
+						component_status : ''
 					};
 
-					if ( typeof additional_options_received.current_row_cid !== 'undefined' && '' !== additional_options_received.current_row_cid ) {
+					if (typeof additional_options_received.current_row_cid !== 'undefined' && '' !== additional_options_received.current_row_cid) {
 						module_settings['current_row'] = additional_options_received.current_row_cid;
 					}
 
-					if ( typeof additional_options_received.global_parent !== 'undefined' && '' !== additional_options_received.global_parent ) {
+					if (typeof additional_options_received.global_parent !== 'undefined' && '' !== additional_options_received.global_parent) {
 						module_settings['et_pb_global_parent'] = additional_options_received.global_parent;
 						module_settings['global_parent_cid'] = additional_options_received.global_parent_cid;
 					}
 
-					if ( shortcode_name === 'section' && ( typeof additional_options_received.after_section !== 'undefined' && '' !== additional_options_received.after_section ) ) {
+					if (shortcode_name === 'section' && (typeof additional_options_received.after_section !== 'undefined' && '' !== additional_options_received.after_section)) {
 						module_settings['after_section'] = additional_options_received.after_section;
 					}
 
-					if ( shortcode_name !== 'section' ) {
+					if (shortcode_name !== 'section') {
 						module_settings['parent'] = parent_cid;
 					}
 
-					if ( shortcode_name.indexOf( 'et_pb_' ) !== -1 ) {
+					if (shortcode_name.indexOf('et_pb_') !== -1) {
+						module_settings['type'] = 'module';
+					}
+
+					// this logic is sufficient even for 3rd party modules taking into account all the changes made to support it
+					if (original_shortcode_name === module_settings['type']) {
 						module_settings['type'] = 'module';
 					}
 
 					// generate default admin_label
-					module_settings['admin_label'] = ET_PageBuilder_Layout.getDefaultAdminLabel( shortcode_name );
+					module_settings['admin_label'] = is_unregistered_shortcode ? shortcode_name : ET_PageBuilder_Layout.getDefaultAdminLabel(shortcode_name);
 
 					// global modules may have predefined address, so use it if exist.
 					module_settings._address = !_.isUndefined(additional_options_received.predefined_address) ? additional_options_received.predefined_address : index.toString();
 
-					if ( ! _.isUndefined( parent_address ) ) {
+					if (! _.isUndefined(parent_address)) {
 						module_settings._address = parent_address + '.' + module_settings._address;
 					}
 
-					if ( _.isObject( shortcode_attributes['named'] ) ) {
+					if (_.isObject(shortcode_attributes['named'])) {
 						var fill_legacy_global_options = false;
 
 						// prepare global module selective sync attributes
-						if ( 'global' === et_pb_options.is_global_template && ! is_structure_element && typeof shortcode_attributes['named']['template_type'] !== 'undefined' && 'module' === shortcode_attributes['named']['template_type'] ) {
-							if ( 'updated' === et_pb_options.selective_sync_status ) {
-								et_pb_all_unsynced_options[ et_pb_options.template_post_id ] = et_pb_options.excluded_global_options;
+						if ('global' === et_pb_options.is_global_template && ! is_structure_element && typeof shortcode_attributes['named']['template_type'] !== 'undefined' && 'module' === shortcode_attributes['named']['template_type']) {
+							if ('updated' === et_pb_options.selective_sync_status) {
+								et_pb_all_unsynced_options[et_pb_options.template_post_id] = et_pb_options.excluded_global_options;
 							} else {
 								fill_legacy_global_options = true;
-								et_pb_all_legacy_synced_options[ et_pb_options.template_post_id ] = [];
+								et_pb_all_legacy_synced_options[et_pb_options.template_post_id] = [];
 							}
 						}
 
@@ -8187,34 +8478,39 @@ window.et_builder_product_name = 'Divi';
 
 						// settings migration should not be performed on reinit. It should only be performed on initial content loading
 						// Exception: force migration may be triggered for global modules using migrate_global_modules flag
-						if ( 'reinit' !== additional_options_received.is_reinit || ( 'migrate' === additional_options_received.migrate_global_modules && ( '' !== global_module_id || '' !== additional_options_received.global_parent ) ) ) {
-							shortcode_attributes = et_pb_migrate_settings( shortcode_attributes, module_settings._address, module_settings.type, shortcode_name );
+						if ('reinit' !== additional_options_received.is_reinit || ('migrate' === additional_options_received.migrate_global_modules && ('' !== global_module_id || '' !== additional_options_received.global_parent))) {
+							shortcode_attributes = et_pb_migrate_settings(shortcode_attributes, module_settings._address, module_settings.type, shortcode_name);
 						}
 
-						for ( var key in shortcode_attributes['named'] ) {
-							if ( typeof additional_options_received.ignore_template_tag === 'undefined' || '' === additional_options_received.ignore_template_tag || ( 'ignore_template' === additional_options_received.ignore_template_tag && 'template_type' !== key ) ) {
+						for (var key in shortcode_attributes['named']) {
+							if (typeof additional_options_received.ignore_template_tag === 'undefined' || '' === additional_options_received.ignore_template_tag || ('ignore_template' === additional_options_received.ignore_template_tag && 'template_type' !== key)) {
 								var prefixed_key = key !== 'admin_label' && key !== 'specialty_columns' && key !== 'value_changes' ? 'et_pb_' + key : key,
 									skip_setting = false;
 
-								// fill the array of legacy global synced options for module
-								if ( fill_legacy_global_options ) {
-									et_pb_all_legacy_synced_options[ et_pb_options.template_post_id ].push( key );
+								if ( 'et_pb_signup' === shortcode_name && $.inArray(key, [ 'description', 'footer_content' ] ) !== -1 ) {
+									shortcode_attributes['named'][key] = shortcode_attributes['named'][key].replace( /%91/g, '[' ).replace( /%93/g, ']' );
+									shortcode_attributes['named'][key] = shortcode_attributes['named'][key].replace( /%22/g, '"' );
 								}
 
-								if ( ( shortcode_name === 'column' || shortcode_name === 'column_inner' ) && prefixed_key === 'et_pb_type' ) {
+								// fill the array of legacy global synced options for module
+								if (fill_legacy_global_options) {
+									et_pb_all_legacy_synced_options[et_pb_options.template_post_id].push(key);
+								}
+
+								if ((shortcode_name === 'column' || shortcode_name === 'column_inner') && prefixed_key === 'et_pb_type') {
 									prefixed_key = 'layout';
 								}
 
 								// skip unsynced options for global modules if isset
-								if ( ! _.isEmpty( additional_options_received.unsynced_options ) && -1 !== _.indexOf( additional_options_received.unsynced_options, key ) ) {
+								if (! _.isEmpty(additional_options_received.unsynced_options) && -1 !== _.indexOf(additional_options_received.unsynced_options, key)) {
 									skip_setting = true;
 								}
 
-								if ( ! skip_setting ) {
+								if (! skip_setting) {
 									prefixed_attributes[prefixed_key] = shortcode_attributes['named'][key];
 
 									// Delete module item's value changes that is being assigned to module. Otherwise, this will pollutes `window.wp.shortcode.attrs()` and causing incorrect shortcode attribute parsing
-									if ( key === 'value_changes' ) {
+									if (key === 'value_changes') {
 										delete shortcode_attributes['named'][key];
 									}
 
@@ -8222,61 +8518,80 @@ window.et_builder_product_name = 'Divi';
 							}
 						}
 
-						module_settings = _.extend( module_settings, prefixed_attributes );
+						module_settings = _.extend(module_settings, prefixed_attributes);
 					}
 
-					if ( typeof module_settings['specialty_columns'] !== 'undefined' ) {
+					if ('section' === shortcode_name && 'on' === module_settings['et_pb_specialty']) {
+						shortcode_content = et_maybe_fix_specialty_columns(shortcode_content);
+					}
+
+					if (typeof module_settings['specialty_columns'] !== 'undefined') {
 						module_settings['layout_specialty'] = '1';
-						module_settings['specialty_columns'] = parseInt( module_settings['specialty_columns'] );
+						module_settings['specialty_columns'] = parseInt(module_settings['specialty_columns']);
 					}
 					// Skip content if it's not synced for global modules.
-					if ( ! found_inner_shortcodes && ( _.isUndefined( additional_options_received.unsynced_options ) || _.isEmpty( additional_options_received.unsynced_options ) || -1 === _.indexOf( additional_options_received.unsynced_options, 'et_pb_content_field' ) ) ) {
-						if ( $.inArray( shortcode_name, et_pb_raw_shortcodes ) > -1 ) {
-							module_settings['et_pb_raw_content'] = _.unescape( shortcode_content );
+					if (! found_inner_shortcodes && (_.isUndefined(additional_options_received.unsynced_options) || _.isEmpty(additional_options_received.unsynced_options) || -1 === _.indexOf(additional_options_received.unsynced_options, 'et_pb_content_field'))) {
+						if ($.inArray(shortcode_name, et_pb_raw_shortcodes) > -1) {
+							module_settings['et_pb_raw_content'] = module_settings['et_pb_raw_content'] || shortcode_content || '';
 							// replace line-break placeholders with real line-breaks
-							module_settings['et_pb_raw_content'] = module_settings['et_pb_raw_content'].replace( /<!-- \[et_pb_line_break_holder\] -->/g, '\n' );
+							module_settings['et_pb_raw_content'] = module_settings['et_pb_raw_content'].replace(/<!-- \[et_pb_line_break_holder\] -->/g, '\n');
 						} else {
-							module_settings['et_pb_content_new'] = shortcode_content;
+							module_settings['et_pb_content'] = shortcode_content;
 						}
 					}
 
-					// convert line break placeholders into real line-breaks for the message pattern option in Contact Form module
-					if ( 'et_pb_contact_form' === shortcode_name && typeof module_settings['et_pb_custom_message'] !== 'undefined' ) {
-						// unescape content to make sure quotes displayed correctly in the Editor.
-						module_settings['et_pb_custom_message'] = _.unescape( module_settings['et_pb_custom_message'].replace( /\|\|et_pb_line_break_holder\|\|/g, '\r\n' ) );
+					// Make Sure columns added as content for Rows, so we can render column settings.
+					if (_.includes(['row', 'row_inner'], shortcode_name)) {
+						module_settings['et_pb_content'] = shortcode_content;
 					}
 
-					if ( ! module_settings['et_pb_disabled'] !== 'undefined' && module_settings['et_pb_disabled'] === 'on' ) {
+					// convert line break placeholders into real line-breaks for the message pattern option in Contact Form module
+					if ('et_pb_contact_form' === shortcode_name && typeof module_settings['et_pb_custom_message'] !== 'undefined') {
+						// unescape content to make sure quotes displayed correctly in the Editor.
+						module_settings['et_pb_custom_message'] = _.unescape(module_settings['et_pb_custom_message'].replace(/\|\|et_pb_line_break_holder\|\|/g, '\r\n'));
+					}
+
+					if (! module_settings['et_pb_disabled'] !== 'undefined' && module_settings['et_pb_disabled'] === 'on') {
 						module_settings.className = ' et_pb_disabled';
 					}
 
-					if ( ! module_settings['et_pb_locked'] !== 'undefined' && module_settings['et_pb_locked'] === 'on' ) {
+					if (! module_settings['et_pb_locked'] !== 'undefined' && module_settings['et_pb_locked'] === 'on') {
 						module_settings.className = ' et_pb_locked';
 					}
 
-					if ( typeof additional_options_received.global_id !== 'undefined' && '' !== additional_options_received.global_id ) {
+					if (typeof additional_options_received.global_id !== 'undefined' && '' !== additional_options_received.global_id) {
 						module_settings['et_pb_global_module'] = additional_options_received.global_id;
 					}
 
-					this_el.collection.add( [ module_settings ] );
+					// shortcode is not registered in wp. It means it's a 3rd party module and plugin is disabled
+					if (!is_structure_element && _.indexOf(all_registered_shortcodes, shortcode_name) === -1) {
+						// add module into collection and continue
+						module_settings['title'] = shortcode_name;
+						module_settings['component_status'] = 'removed';
+						this_el.collection.add([module_settings]);
+						return;
+					}
 
-					if ( 'reinit' === additional_options_received.is_reinit || ( global_module_id === '' || ( global_module_id !== '' && 'row' !== shortcode_name && 'row_inner' !== shortcode_name && 'section' !== shortcode_name ) ) ) {
-						if ( found_inner_shortcodes ) {
-							var global_parent_id = typeof additional_options_received.global_parent === 'undefined' || '' === additional_options_received.global_parent ? global_module_id : additional_options_received.global_parent,
-								global_parent_cid_new = typeof additional_options_received.global_parent_cid === 'undefined' || '' === additional_options_received.global_parent_cid
+					this_el.collection.add([module_settings]);
+
+					if ('reinit' === additional_options_received.is_reinit || (global_module_id === '' || (global_module_id !== '' && 'row' !== shortcode_name && 'row_inner' !== shortcode_name && 'section' !== shortcode_name))) {
+						if (found_inner_shortcodes) {
+							var global_parent_id = typeof additional_options_received.global_parent === 'undefined' || '' === additional_options_received.global_parent ? global_module_id : additional_options_received.global_parent;
+							var global_parent_cid_new = typeof additional_options_received.global_parent_cid === 'undefined' || '' === additional_options_received.global_parent_cid
 									? typeof global_module_id !== 'undefined' && '' !== global_module_id ? module_cid : ''
 									: additional_options_received.global_parent_cid;
+							var inner_shortcode = ! is_structure_element ? found_inner_shortcodes : '';
 
-							this_el.createLayoutFromContent( shortcode_content, module_cid, '', { is_reinit : additional_options_received.is_reinit, global_parent : global_parent_id, global_parent_cid : global_parent_cid_new, migrate_global_modules : additional_options_received.migrate_global_modules }, module_settings._address );
+							this_el.createLayoutFromContent(shortcode_content, module_cid, inner_shortcode, { is_reinit : additional_options_received.is_reinit, global_parent : global_parent_id, global_parent_cid : global_parent_cid_new, migrate_global_modules : additional_options_received.migrate_global_modules }, module_settings._address);
 						}
 					} else {
 						//calculate how many global modules we requested on page
 						et_pb_globals_requested++;
 
-						et_pb_load_global_row( global_module_id, module_cid, shortcode, module_settings._address );
-						this_el.createLayoutFromContent( shortcode_content, module_cid, '', { is_reinit : 'reinit' }, module_settings._address );
+						et_pb_load_global_row(global_module_id, module_cid, shortcode, module_settings._address);
+						this_el.createLayoutFromContent(shortcode_content, module_cid, '', { is_reinit : 'reinit' }, module_settings._address);
 					}
-				} );
+				});
 			},
 
 			addModule : function( module ) {
@@ -8431,7 +8746,7 @@ window.et_builder_product_name = 'Divi';
 					case 'module' :
 						view_settings['attributes'] = {
 							'data-cid' : module.get( 'cid' )
-						}
+						};
 
 						if ( module.get( 'mode' ) !== 'advanced' && module.get( 'created' ) === 'manually' && ET_PageBuilder_Layout.getView( module.get( 'parent' ) ).model.get( 'module_type' ) === 'column_inner' ) {
 							var inner_column_parent_row = ET_PageBuilder_Layout.getView( module.get( 'parent' ) ).model.get( 'parent' );
@@ -8584,19 +8899,19 @@ window.et_builder_product_name = 'Divi';
 					sections_background_color = [];
 
 				// Loop all sections
-				this.$el.find( '.et_pb_section' ).each( function() {
-					var section_cid = $(this).find( '.et-pb-data-cid' ).data( 'cid' ),
-						section_model = ET_PageBuilder_Modules.find( function( model ) {
+				this.$el.find('.et_pb_section').each(function() {
+					var section_cid = $(this).find('.et-pb-data-cid').data('cid');
+					var section_model = ET_PageBuilder_Modules.find(function(model) {
 							return model.get('cid') == section_cid;
-						} ),
-						background_color = section_model.attributes.et_pb_background_color;
+						});
+					var background_color = get(section_model, 'attributes.et_pb_background_color', '');
 
 					// If current section has no background_color attribute, get default color
-					if ( background_color === '' || ! background_color ) {
+					if (background_color === '' || ! background_color) {
 						background_color = thisClass.getDefaultSectionBackgroundColor();
 					}
 
-					sections_background_color.push( background_color );
+					sections_background_color.push(background_color);
 				} );
 
 				return sections_background_color;
@@ -8655,8 +8970,8 @@ window.et_builder_product_name = 'Divi';
 											column_cid = $this_column_inner.data( 'cid' ),
 											module = ET_PageBuilder_Modules.findWhere( { cid : column_cid } );
 
-										if ( true === include_whole_inner_row ) {
-											shortcode += '[et_pb_column_inner type="' + module.get('layout') + '" saved_specialty_column_type="' + specialty_column_layout + '"]';
+										if (true === include_whole_inner_row) {
+											shortcode += this_el.generateModuleShortcode($(this), true, layout_type, ignore_global_tag, 'column_inner', false, false, specialty_column_layout);
 										}
 
 										$this_column_inner.find( '.et_pb_module_block' ).each( function() {
@@ -8710,7 +9025,7 @@ window.et_builder_product_name = 'Divi';
 									module = ET_PageBuilder_Modules.findWhere( { cid : column_cid } );
 
 								if ( ( ( false === all_sections && ( true === include_whole_section || true === include_whole_row ) ) || true === all_sections ) && true !== skip_row ) {
-									shortcode += '[et_pb_column type="' + module.get('layout') + '"]';
+									shortcode += this_el.generateModuleShortcode($(this), true, layout_type, ignore_global_tag, 'column');
 								}
 
 								$this_column.find( '.et_pb_module_block' ).each( function() {
@@ -8741,7 +9056,7 @@ window.et_builder_product_name = 'Divi';
 			return shortcode;
 			},
 
-			generateModuleShortcode : function( $module, open_tag_only, layout_type, ignore_global_tag, defined_module_type, ignore_global_tabs, is_saving_global ) {
+			generateModuleShortcode : function($module, open_tag_only, layout_type, ignore_global_tag, defined_module_type, ignore_global_tabs, is_saving_global, specialty_column_type) {
 				var attributes = '',
 					content = '',
 					$this_module = $module,
@@ -8780,19 +9095,26 @@ window.et_builder_product_name = 'Divi';
 						sections_background_color = this.getSectionsBackgroundColor(),
 						section_background_color = _.isUndefined( module_settings.et_pb_background_color ) ? this.getDefaultSectionBackgroundColor() : module_settings.et_pb_background_color,
 						prev_adjacent_background_color = _.isUndefined( sections_background_color[prev_section_address] ) ? '' : sections_background_color[prev_section_address],
-						next_adjacent_background_color = _.isUndefined( sections_background_color[next_section_address] ) ? '' : sections_background_color[next_section_address];
+						next_adjacent_background_color = _.isUndefined( sections_background_color[next_section_address] ) ? '' : sections_background_color[next_section_address],
+						isModuleHasAdvancedBackground = ET_PageBuilder.Helpers.moduleHasBackground(
+							module_settings,
+							['gradient', 'image', 'video']
+						);
 
-					// If current and prev section has identical background color, set adjacent color for previous section
-					// to black so divider color will automatically visible
-					if ( prev_adjacent_background_color === section_background_color) {
+
+					// If current and prev section has identical background color and current section
+					// has no background gradient, image, or video, set adjacent color for previous
+					// section to black so divider color will automatically visible
+					if ( prev_adjacent_background_color === section_background_color && !isModuleHasAdvancedBackground ) {
 						prev_adjacent_background_color = '#000000';
 					}
 
 					module_settings.et_pb_prev_background_color = prev_adjacent_background_color;
 
-					// If current and next section has identical background color, set adjacent color for next section
-					// to black so divider color will automatically visible
-					if ( next_adjacent_background_color === section_background_color ) {
+					// If current and next section has identical background color and current section
+					// has no background gradient, image, or video, set adjacent color for next
+					// section to black so divider color will automatically visible
+					if ( next_adjacent_background_color === section_background_color && !isModuleHasAdvancedBackground ) {
 						next_adjacent_background_color = '#000000';
 					}
 
@@ -8808,7 +9130,7 @@ window.et_builder_product_name = 'Divi';
 
 				for ( var key in module_settings ) {
 					if ( ! _.isEmpty( unsynced_options ) ) {
-						var global_option_name = $.inArray( key, ['et_pb_content_new', 'et_pb_raw_content'] ) !== -1 ? 'et_pb_content_field' : key.replace( 'et_pb_', '' );
+						var global_option_name = $.inArray( key, ['et_pb_content', 'et_pb_raw_content'] ) !== -1 ? 'et_pb_content_field' : key.replace( 'et_pb_', '' );
 
 						// skip unsynced options
 						if ( $.inArray( global_option_name, unsynced_options ) !== -1 ) {
@@ -8830,13 +9152,13 @@ window.et_builder_product_name = 'Divi';
 
 							setting_value = typeof( module.get( setting_name ) ) !== 'undefined' ? module.get( setting_name ) : '';
 
-							if ( setting_name === 'et_pb_content_new' || setting_name === 'et_pb_raw_content' ) {
+							if ( setting_name === 'et_pb_content' || setting_name === 'et_pb_raw_content' ) {
 								content = setting_value;
+
 
 								if ( setting_name === 'et_pb_raw_content' ) {
 									// replace the line-breaks with placeholders, so they won't be removed/replaced by WP
 									content = content.replace( /\r?\n|\r/g, '<!-- [et_pb_line_break_holder] -->' );
-									content = _.escape( content );
 								}
 
 								content = $.trim( content );
@@ -8844,7 +9166,7 @@ window.et_builder_product_name = 'Divi';
 								var modules_with_child = $.parseJSON( et_pb_options.et_builder_modules_with_children );
 
 								// don't add additional line-breaks to the modules wich child elements. It'll add unwanted extra space to them
-								if ( ! _.includes( _.keys( modules_with_child ), module.get( 'module_type' ) ) && '' !== content && setting_name === 'et_pb_content_new' ) {
+								if ( ! _.includes( _.keys( modules_with_child ), module.get( 'module_type' ) ) && '' !== content && setting_name === 'et_pb_content' ) {
 									content = "\n\n" + content + "\n\n";
 								}
 
@@ -8912,6 +9234,15 @@ window.et_builder_product_name = 'Divi';
 					attributes = ' bb_built="1"' + attributes;
 				}
 
+				if (_.includes(['column', 'column_inner'], module_type)) {
+					attributes = ' type="' + module.get('layout') + '"' + attributes;
+					prefix = 'et_pb_';
+
+					if ('column_inner' === module_type) {
+						attributes += ' saved_specialty_column_type="' + specialty_column_type + '"';
+					}
+				}
+
 				shortcode = '[' + prefix + module_type + attributes;
 
 				if ( content === '' && ( typeof module_settings['type'] !== 'undefined' && module_settings['type'] === 'module' ) ) {
@@ -8921,8 +9252,9 @@ window.et_builder_product_name = 'Divi';
 					shortcode += ']';
 				}
 
-				if ( ! open_tag_only )
+				if ( ! open_tag_only ) {
 					shortcode += content + '[/' + prefix + module_type + ']';
+				}
 
 				return shortcode;
 			},
@@ -9040,9 +9372,15 @@ window.et_builder_product_name = 'Divi';
 
 				this.stopListening( this.collection, 'change reset add', this.saveAsShortcode );
 
+				// prep code module content for wpautop
+				content = ET_PageBuilder_App.codeModuleContentPrep(content);
+
 				if ( action === 'load_layout' && typeof window.switchEditors !== 'undefined' ) {
 					content = et_pb_fix_shortcodes( window.switchEditors.wpautop( content ) );
 				}
+
+				// unprep code module
+				content = ET_PageBuilder_App.codeModuleContentUnPrep(content);
 
 				this.createLayoutFromContent( content );
 
@@ -9171,28 +9509,116 @@ window.et_builder_product_name = 'Divi';
 				});
 			},
 
-			// reload content for the Yoast after it was changed in builder
+			parseShortcode: function(shortcode, callback, shortcodeID) {
+				var msie = document.documentMode;
+				// Make sure the iframeID is unique.
+				// It's possible that several requests will be started at the same time and now() will return the same value, so append random number.
+				var iframeID = 'et-fb-preview-' + Date.now() + '-' + Math.floor((Math.random() * 1000) + 1);
+				var previewUrl = et_pb_options.preview_url + '&et_pb_preview=true&et_pb_preview_nonce=' + et_pb_options.et_pb_preview_nonce + '&iframe_id=' + iframeID;
+
+				// Roll in the next lifecycle to get correct shortcode wrapper's width
+				setTimeout(function() {
+				  var $shortcodeWrapper = $('*[data-shortcode-id="' + shortcodeID +'"]');
+				  var shortcodeWidth = $shortcodeWrapper.length ? $shortcodeWrapper.width() + 'px' : '100%';
+
+				  var $iframe = jQuery('<iframe />', {
+					id: iframeID,
+					src: previewUrl,
+					style: 'position: absolute; bottom: 0; left: 0; opacity: 0; pointer-events: none; width:' + shortcodeWidth + '; height: 100%;'
+				  });
+
+				  var hasRenderPage = false;
+				  var request_data = {
+					et_pb_preview_nonce : et_pb_options.et_pb_preview_nonce,
+					shortcode           : shortcode,
+					post_title          : $('#title').val(),
+					post_id             : et_pb_options.postId
+				  };
+
+				  /**
+				   * Append iframe to body.
+				   * component DOM hasn't ready at this point so it needs to be appended to <body>
+				   */
+				  $('body').append($iframe);
+
+					/**
+					 * Load iframe's content into page
+					 */
+					$iframe.load(function() {
+						/**
+						 * Prevent unnecessary load
+						 */
+						if (hasRenderPage) {
+						return;
+						}
+
+						var preview = document.getElementById(iframeID);
+
+						/**
+						 * IE9 below fix (They have postMessage, but it has to be in string)
+						 */
+						if (!_.isUndefined(msie) && msie < 10) {
+							request_data = JSON.stringify(request_data);
+						}
+
+						/**
+						 * Pass shortcode structure to iFrame to be displayed
+						 */
+						preview.contentWindow.postMessage(request_data, previewUrl);
+
+						/**
+						 * Flag to prevent unnecessary load
+						 */
+						hasRenderPage = true;
+
+						/**
+						 * Create IE compatible event handler
+						 */
+						var childListenerMethod = window.addEventListener ? "addEventListener" : "attachEvent";
+						var childListener = window[childListenerMethod];
+						var childListenerEvent = childListenerMethod == "attachEvent" ? "onmessage" : "message";
+
+						/**
+						 * Listen to message from child window
+						 */
+						childListener(childListenerEvent, function(event) {
+							if (event.data.iframe_id === iframeID && _.isString(event.data.html)) {
+								callback(event.data);
+
+								/**
+							 	* Remove event since the data has been passed to callback
+							 	*/
+								$iframe.remove();
+							}
+						}, false);
+					});
+				}, 0);
+
+				return;
+			},
+
+			// Reload content for the Yoast after it was changed in builder
 			updateYoastContent : function() {
 				if ( ! et_pb_is_yoast_seo_active() ) {
 					return;
 				}
 
-				var content = et_pb_get_content( 'content', true );
+				var content                 = et_pb_get_content( 'content', true );
+				var _loadingSpinnerHTML     = '<svg class="yoast-svg-icon et-pb-yoast-loading yoast-svg-icon-loading-spinner SvgIcon__StyledSvg-jBzRth mPAyu" aria-hidden="true" role="img" focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 66 66" fill="#64a60a" style="position: absolute; background: #fff; border-radius: 5px; max-width: 18px;"><circle class="path" fill="none" stroke-width="6" stroke-linecap="round" cx="33" cy="33" r="30"></circle></svg>';
+				var $yoastAnalysisContainer = $('#yoast-readability-analysis-collapsible-metabox');
 
-				// perform the do_shortcode for the current content from builder and force Yoast to reload
-				$.ajax( {
-					type: "POST",
-					url: et_pb_options.ajaxurl,
-					data: {
-						action : 'et_pb_execute_content_shortcodes',
-						et_admin_load_nonce : et_pb_options.et_admin_load_nonce,
-						et_pb_unprocessed_data : content
-					},
-					success: function( data ) {
-						et_pb_processed_yoast_content = data;
-						YoastSEO.app.pluginReloaded( 'ET_PB_Yoast_Content' );
-					}
-				} );
+				// Remove our loader if exists
+				$('.et-pb-yoast-loading').remove();
+
+				// Add loader icon on top of the Yoast icon to show the progress
+				$yoastAnalysisContainer.find('svg').first().after(_loadingSpinnerHTML);
+
+				// Parse the current content from builder and force Yoast to reload with updated data
+				this.parseShortcode(content, function(response) {
+					var pageHTML = !_.isUndefined(response.html) ? response.html : '';
+					et_pb_processed_yoast_content = pageHTML;
+					YoastSEO.app.pluginReloaded('ET_PB_Yoast_Content');
+				}, 'yoast_preview_content');
 			},
 
 			// calculate and add the module_order attribute for the module.
@@ -9248,10 +9674,10 @@ window.et_builder_product_name = 'Divi';
 					start_from = typeof this.order_modules_array['children_count'][ child_slug ] !== 'undefined' ? this.order_modules_array['children_count'][ child_slug ] : 0;
 					current_model.attributes.child_start_from = start_from; // this attributed used as a start point for calculation of child modules order
 
-					if ( typeof current_model.attributes.et_pb_content_new !== 'undefined' && '' !== current_model.attributes.et_pb_content_new ) {
+					if ( typeof current_model.attributes.et_pb_content !== 'undefined' && '' !== current_model.attributes.et_pb_content ) {
 						var et_pb_shortcodes_tags = ET_PageBuilder_App.getShortCodeChildTags();
 						var reg_exp = window.wp.shortcode.regexp( et_pb_shortcodes_tags );
-						var matches = current_model.attributes.et_pb_content_new.match( reg_exp );
+						var matches = current_model.attributes.et_pb_content.match( reg_exp );
 						start_from += null !== matches ? matches.length : 0;
 					}
 
@@ -9275,11 +9701,19 @@ window.et_builder_product_name = 'Divi';
 				var new_address     = 'section' === module_type ? index.toString() : parent_address + '.' + index.toString();
 				var path            = _.isUndefined( current_address ) ? false : 'et_pb_module_settings_migrations.value_changes.' + current_address;
 				var has_migrations  = path ? has( et_pb_options, path ) : false;
+				var has_name_changes_migration = has( et_pb_options, 'et_pb_module_settings_migrations.name_changes' ) && ! _.isUndefined( et_pb_options.et_pb_module_settings_migrations.name_changes[current_address] );
 
-				if ( has_migrations && new_address !== current_address ) {
+				if ( new_address !== current_address ) {
 					// Update module settings migration data
-					et_pb_options.et_pb_module_settings_migrations.value_changes[new_address] = _.clone( et_pb_options.et_pb_module_settings_migrations.value_changes[current_address] );
-					delete et_pb_options.et_pb_module_settings_migrations.value_changes[current_address];
+					if ( has_migrations ) {
+						et_pb_options.et_pb_module_settings_migrations.value_changes[new_address] = _.clone( et_pb_options.et_pb_module_settings_migrations.value_changes[current_address] );
+						delete et_pb_options.et_pb_module_settings_migrations.value_changes[current_address];
+					}
+
+					if ( has_name_changes_migration ) {
+						et_pb_options.et_pb_module_settings_migrations.name_changes[new_address] = _.clone( et_pb_options.et_pb_module_settings_migrations.name_changes[current_address] );
+						delete et_pb_options.et_pb_module_settings_migrations.name_changes[current_address];
+					}
 				}
 
 				module.set( { _address: new_address } );
@@ -9462,7 +9896,7 @@ window.et_builder_product_name = 'Divi';
 			},
 
 			_combineValues: function(values) {
-				return (values['border-link'] ? 'on' : '') + '|' + values['top-left'] + '|' +
+				return (values['border-link'] ? 'on' : 'off') + '|' + values['top-left'] + '|' +
 					values['top-right'] + '|' + values['bottom-right'] + '|' + values['bottom-left'];
 			},
 
@@ -10118,8 +10552,8 @@ window.et_builder_product_name = 'Divi';
 		function et_pb_activate_gallery( $gallery_button ) {
 			$gallery_button.click( function( event ) {
 				var $this_el = $(this),
-					$gallery_ids = $gallery_button.closest( '.et-pb-options-tab' ).find( '.et-pb-option-gallery_ids .et-pb-gallery-ids-field' ),
-					$gallery_orderby = $gallery_button.closest( '.et-pb-options-tab' ).find( '.et-pb-option-gallery_orderby .et-pb-gallery-ids-field' );
+					$gallery_ids = $gallery_button.next( '.et-pb-gallery' ),
+					$gallery_orderby = $gallery_button.closest('.et-pb-options-tab').find('#et_pb_gallery_orderby');
 
 				event.preventDefault();
 
@@ -10264,7 +10698,7 @@ window.et_builder_product_name = 'Divi';
 			}).done( function( data, status, response ) {
 				data = JSON.parse( data );
 
-				$accounts_select.html( _.template( data.accounts_list )( settingsView.model.attributes ) );
+				$accounts_select.html( _.template( data.accounts_list ).bind( settingsView )( settingsView.model.attributes ) );
 				complete( data );
 
 			}).fail( complete );
@@ -10300,7 +10734,7 @@ window.et_builder_product_name = 'Divi';
 			}).done( function( data, status, response ) {
 				data = JSON.parse( data );
 
-				$accounts_select.html( _.template( data.accounts_list )( settingsView.model.attributes ) );
+				$accounts_select.html( _.template( data.accounts_list ).bind( settingsView )( settingsView.model.attributes ) );
 				complete( data );
 
 			}).fail( complete );
@@ -11152,6 +11586,11 @@ window.et_builder_product_name = 'Divi';
 			set_subject : function( view, waiting ) {
 				var that = this;
 
+				// Prevent removed component to be selected as subject
+				if ('removed' === view.model.get('component_status')) {
+					return;
+				}
+
 				// make sure ab testing database tables created otherwise wait until creating process is finished
 				if ( 'exists' !== et_pb_options.ab_db_status ) {
 					setTimeout( function() {
@@ -11255,6 +11694,11 @@ window.et_builder_product_name = 'Divi';
 					// Prevent global children to be selected as goal
 					if ( ! _.isUndefined( view.model.get( 'et_pb_global_parent' ) ) ) {
 						ET_PageBuilder_AB_Testing.alert( 'cannot_select_global_children_as_goal' );
+						return;
+					}
+
+					// Prevent removed component to be selected as goal
+					if ('removed' === view.model.get('component_status')) {
 						return;
 					}
 
@@ -12305,6 +12749,17 @@ window.et_builder_product_name = 'Divi';
 
 				$et_pb_old_content.val( content );
 
+				// We disable tinymce visual mode (switch to html mode) on the main editor,
+				// but we need to grab the user setting for the editor mode first,
+				// and reset it after we make the switch so they keep getting the correct mode
+				// for future tinymce instances (like module settings).
+				var editorUserSetting = getUserSetting('editor');
+
+				if ('html' !== editorUserSetting) {
+					$('#content-html').click();
+					setUserSetting('editor', editorUserSetting);
+				}
+
 				ET_PageBuilder_App.reInitialize();
 
 				$use_builder_custom_field.val( 'on' );
@@ -12313,7 +12768,7 @@ window.et_builder_product_name = 'Divi';
 
 				$this_el.text( $this_el.data( 'editor' ) );
 
-				$main_editor_wrapper.toggleClass( 'et_pb_hidden' );
+				$main_editor_wrapper.toggleClass( 'et_pb_post_body_hidden' );
 
 				$this_el.toggleClass( 'et_pb_builder_is_used' );
 
@@ -12322,6 +12777,8 @@ window.et_builder_product_name = 'Divi';
 				et_pb_hide_layout_settings();
 
 				$et_pb_fb_cta.addClass( 'et_pb_ready' );
+
+				$( 'form#post' ).append( '<input type="hidden" name="et_pb_show_page_creation" value="on" />' );
 			}
 		} );
 
@@ -12376,13 +12833,17 @@ window.et_builder_product_name = 'Divi';
 
 			window.wpActiveEditor = 'content';
 
+			if ('html' !== et_pb_options.wp_default_editor) {
+				$('#content-tmce').click();
+			}
+
 			$use_builder_custom_field.val( 'off' );
 
 			$builder.hide();
 
 			$toggle_builder_button.text( $toggle_builder_button.data( 'builder' ) ).toggleClass( 'et_pb_builder_is_used' );
 
-			$main_editor_wrapper.toggleClass( 'et_pb_hidden' );
+			$main_editor_wrapper.toggleClass( 'et_pb_post_body_hidden' );
 
 			et_pb_show_layout_settings();
 
@@ -12396,6 +12857,8 @@ window.et_builder_product_name = 'Divi';
 			if ( ET_PageBuilder_AB_Testing.is_active() ) {
 				ET_PageBuilder_AB_Testing.delete_post_meta();
 			}
+
+			$( 'form#post' ).append( '<input type="hidden" name="et_pb_show_page_creation" value="off" />' );
 
 			//trigger window resize event to trigger tinyMCE editor toolbar sizes recalculation.
 			$( window ).trigger( 'resize' );
@@ -12833,21 +13296,7 @@ window.et_builder_product_name = 'Divi';
 									return;
 								}
 
-								$.ajax( {
-									type:     'POST',
-									url:      et_pb_options.ajaxurl,
-									dataType: 'json',
-									data:     {
-										action: 'et_builder_library_get_layouts_data',
-										nonce:  et_pb_options.library_get_layouts_data_nonce
-									}
-								} ).then( function( response ) {
-									var local_layouts = get( response, 'data', '' );
-
-									if ( local_layouts ) {
-										et_pb_options.library_local_layouts = local_layouts;
-									}
-								} );
+								et_builder_layouts_loaded = et_builder_library_get_layouts_data();
 							}
 						} );
 
@@ -12906,7 +13355,7 @@ window.et_builder_product_name = 'Divi';
 
 						setTimeout( function() {
 							if ( 'module' === layout_type ) {
-								et_pb_tinymce_remove_control( 'et_pb_content_new' );
+								et_pb_tinymce_remove_control( 'et_pb_content' );
 							}
 
 							$modal_settings_container.remove();
@@ -13417,18 +13866,27 @@ window.et_builder_product_name = 'Divi';
 			}, 600 );
 		}
 
-		function et_pb_hide_layout_settings(){
-			if ( $et_pb_setting.filter( ':visible' ).length > 1 ){
-				$et_pb_layout_settings.find('.et_pb_page_layout_settings').hide();
+		function et_pb_hide_layout_settings() {
+			var $page_layout_settings = $et_pb_layout_settings.closest('#et_settings_meta_box').find('.et_pb_page_layout_settings');
+			if ($et_pb_setting.filter(':visible').length > 1){
+				$page_layout_settings.hide();
 				$et_pb_layout_settings.find('.et_pb_side_nav_settings').show();
-			}
-			else{
-				if ( 'post' !== et_pb_options.post_type ) {
-					$et_pb_layout_settings.closest( '#et_settings_meta_box' ).find('.et_pb_page_layout_settings').hide();
+			} else {
+				if ('post' !== et_pb_options.post_type && 'no' === et_pb_options.is_third_party_post_type) {
+					$page_layout_settings.hide();
 				}
 
-				$et_pb_layout_settings.closest( '#et_settings_meta_box' ).find('.et_pb_side_nav_settings').show();
-				$et_pb_layout_settings.closest( '#et_settings_meta_box' ).find('.et_pb_single_title').show();
+				$et_pb_layout_settings.closest('#et_settings_meta_box').find('.et_pb_side_nav_settings').show();
+				$et_pb_layout_settings.closest('#et_settings_meta_box').find('.et_pb_single_title').show();
+			}
+
+			if ($page_layout_settings.length > 0) {
+				var selected_page_layout = $page_layout_settings.find('#et_pb_page_layout').val();
+				var $fullwidth_option = $page_layout_settings.find('option[value="et_full_width_page"]');
+
+				if ($fullwidth_option.length > 0) {
+					$fullwidth_option.show();
+				}
 			}
 
 			// On post, hide post format UI and layout settings if pagebuilder is activated
@@ -13446,6 +13904,7 @@ window.et_builder_product_name = 'Divi';
 		}
 
 		function et_pb_show_layout_settings(){
+			var $page_layout_settings = $et_pb_layout_settings.closest('#et_settings_meta_box').find('.et_pb_page_layout_settings');
 			$et_pb_layout_settings.show().closest( '#et_settings_meta_box' ).show();
 			$et_pb_layout_settings.closest( '#et_settings_meta_box' ).find('.et_pb_side_nav_settings').hide();
 			$et_pb_layout_settings.closest( '#et_settings_meta_box' ).find('.et_pb_single_title').hide();
@@ -13458,6 +13917,19 @@ window.et_builder_product_name = 'Divi';
 				$( '.et_divi_format_setting.et_divi_' + active_post_format + '_settings' ).show();
 			}
 
+			if ($page_layout_settings.length > 0) {
+				var selected_page_layout = $page_layout_settings.find('#et_pb_page_layout').val();
+				var $fullwidth_option = $page_layout_settings.find('option[value="et_full_width_page"]');
+
+				if ($fullwidth_option.length > 0) {
+					$fullwidth_option.hide();
+				}
+
+				if ('et_full_width_page' === selected_page_layout) {
+					$page_layout_settings.find('#et_pb_page_layout').val('et_no_sidebar');
+				}
+			}
+
 			// Hide project navigation option when builder disabled
 			if ( 'project' === et_pb_options.post_type ) {
 				$et_pb_layout_settings.closest( '#et_settings_meta_box' ).find( '.et_pb_project_nav' ).hide();
@@ -13465,22 +13937,34 @@ window.et_builder_product_name = 'Divi';
 
 		}
 
-		function et_pb_get_content( textarea_id, fix_shortcodes ) {
+		function et_pb_get_content(textarea_id, fix_shortcodes) {
 			var content,
 				fix_shortcodes = typeof fix_shortcodes !== 'undefined' ? fix_shortcodes : false;
 
-			if ( typeof window.tinyMCE !== 'undefined' && window.tinyMCE.get( textarea_id ) && ! window.tinyMCE.get( textarea_id ).isHidden() ) {
-				content = window.tinyMCE.get( textarea_id ).getContent();
+			if (typeof window.tinyMCE !== 'undefined' && window.tinyMCE.get(textarea_id) && !window.tinyMCE.get(textarea_id).isHidden()) {
+				content = window.tinyMCE.get(textarea_id).getContent();
 			} else {
 				content = $( '#' + textarea_id ).val();
 			}
 
-			if ( fix_shortcodes && typeof window.tinyMCE !== 'undefined' ) {
-				content = content.replace( /<p>\[/g, '[' );
-				content = content.replace( /\]<\/p>/g, ']' );
+			if (fix_shortcodes && typeof window.tinyMCE !== 'undefined') {
+				content = content.replace(/<p>\[/g, '[');
+				content = content.replace(/\]<\/p>/g, ']');
 			}
 
 			return content.trim();
+		}
+
+		// Make sure Specialty Section contains inner rows and inner columns.
+		function et_maybe_fix_specialty_columns(content) {
+			return content.replace(/(\[et_pb_(row |row_inner) [\s\S]*?\][\s\S]*\[\/et_pb_(row |row_inner)\])/mi, et_fix_specialty_columns);
+		}
+
+		function et_fix_specialty_columns(rows) {
+			var fixed_content = rows.replace(/et_pb_row /g, 'et_pb_row_inner ').replace(/et_pb_row\]/g, 'et_pb_row_inner]');
+			fixed_content = fixed_content.replace(/et_pb_column /g, 'et_pb_column_inner ').replace(/et_pb_column\]/g, 'et_pb_column_inner]');
+
+			return fixed_content;
 		}
 
 		function et_get_editor_mode() {
@@ -13516,9 +14000,18 @@ window.et_builder_product_name = 'Divi';
 				current_editor_in_visual_mode = et_pb_is_editor_in_visual_mode( textarea_id ),
 				trimmed_content = $.trim( content );
 
+			if ('load_secondary_editor' === current_action) {
+				// Unescape HTML for secondary editors, otherwise tiny_mce will not render HTML correctly.
+				trimmed_content = _.unescape(trimmed_content);
+			}
+
 			if ( typeof window.tinyMCE !== 'undefined' && window.tinyMCE.get( textarea_id ) && current_editor_in_visual_mode ) {
 				var editor = window.tinyMCE.get( textarea_id );
 
+				if ('load_secondary_editor' === current_action) {
+					// Apply autop for the secondary editor to parse the line-breaks correctly inside tinyMCE
+					trimmed_content = window.switchEditors.wpautop(trimmed_content);
+				}
 				editor.setContent( trimmed_content, { format : 'html' } );
 			}
 
@@ -13719,11 +14212,17 @@ window.et_builder_product_name = 'Divi';
 			var $parent_container      = $( '.et_pb_modal_settings_container:not(.et_pb_modal_settings_container_step2)');
 			var $parent_container_adv  = $parent_container.find( '.et-pb-options-tab-advanced' );
 			var current_module         = ET_PageBuilder_Modules.findWhere( { cid : module_cid } );
+			var isColumn               = _.includes(['et_pb_column', 'et_pb_column_inner'], get(current_module, 'attributes.module_type', ''));
 			var is_conditional 		   = function (el) {
 					var key = et_pb_get_default_key($(el));
 					var data = $(el).data(key);
 					return _.isArray(data) && _.isObject(data[1]);
 				};
+			
+			// Column shouldn't inherit Row values.
+			if (isColumn) {
+				return;
+			}
 
 			if ( $advanced_tab.length ) {
 				$advanced_tab_settings.each( function() {
@@ -14078,55 +14577,43 @@ window.et_builder_product_name = 'Divi';
 					}
 			});
 
-			if ( typeof window.switchEditors !== 'undefined' ) {
-				$container.find( '.wp-switch-editor' ).click( function() {
-					var $this_el = $(this),
-						editor_mode;
-
-					editor_mode = $this_el.hasClass( 'switch-tmce' ) ? 'tinymce' : 'html';
-
-					et_pb_maybe_apply_wpautop_to_models( editor_mode );
-
-					window.switchEditors.go( 'content', editor_mode );
-				} );
-			}
-
 			// fix the issue with disapperaing line breaks in visual editor
 
 			$regular_input.on( 'input change' , function() {
 				et_pb_update_mobile_defaults( $( this ) );
 			});
 
-			$custom_color_picker.each( function() {
-				var $this_color_picker      = $(this),
-					this_color_picker_value = $this_color_picker.val(),
-					$container              = $this_color_picker.closest( '.et-pb-custom-color-container' ),
-					$options_container      = $this_color_picker.closest( '.et-pb-options-tab' ),
-					$choose_color_button    = $container.siblings( '.et-pb-choose-custom-color-button' ),
-					old_color_option        = typeof $this_color_picker.data( 'old-option-ref' ) !== 'undefined' && '' !== $this_color_picker.data( 'old-option-ref' ) ? $this_color_picker.data( 'old-option-ref' ) : '',
-					$old_color_el           = '' !== old_color_option ? $options_container.find( '.et-pb-option-' + old_color_option ) : '',
-					$old_color_input        = '' !== $old_color_el && $old_color_el.length ? $old_color_el.find( 'input' ) : '',
-					$main_color_picker      = $container.find( '.et-pb-color-picker-hex' );
+			$custom_color_picker.each(function() {
+				var $this_color_picker      = $(this);
+				var this_color_picker_value = $this_color_picker.val();
+				var $container              = $this_color_picker.closest('.et-pb-custom-color-container');
+				var $options_container      = $this_color_picker.closest('.et-pb-options-tab');
+				var $choose_color_button    = $container.siblings('.et-pb-choose-custom-color-button');
+				var old_color_option        = typeof $this_color_picker.data('old-option-ref') !== 'undefined' && '' !== $this_color_picker.data('old-option-ref') ? $this_color_picker.data('old-option-ref') : '';
+				var $old_color_el           = '' !== old_color_option ? $options_container.find('.et-pb-option-' + old_color_option) : '';
+				var $old_color_input        = '' !== $old_color_el && $old_color_el.length ? $old_color_el.find('input') : '';
+				var $main_color_picker      = $container.find('.et-pb-color-picker-hex');
+				var default_value           = et_pb_get_default_setting_value($main_color_picker).toLowerCase();
 
 				// process the value from old option if exists
-				if ( '' !== $old_color_input ) {
+				if ('' !== $old_color_input) {
 					// get the value from old option only if new option is not set
-					if ( '' === this_color_picker_value && '' !== $old_color_input.val() ) {
+					if ('' === this_color_picker_value && '' !== $old_color_input.val()) {
 						this_color_picker_value = $old_color_input.val();
 					}
 					// always reset the old option to remove it from shortcode
-					$old_color_input.val( '' );
+					$old_color_input.val('');
 				}
 
-				if ( '' === this_color_picker_value ) {
+				if ('' === this_color_picker_value || this_color_picker_value === default_value) {
 					return true;
 				}
 
-				$container.removeClass( hidden_class );
-				$choose_color_button.addClass( hidden_class );
+				$container.removeClass(hidden_class);
+				$choose_color_button.addClass(hidden_class);
 
-				$main_color_picker.wpColorPicker( 'color', this_color_picker_value );
-			} );
+				$main_color_picker.wpColorPicker('color', this_color_picker_value);
+			});
 
 			$custom_color_choose_button.click( function() {
 				var $this_el = $(this),
@@ -14329,7 +14816,21 @@ window.et_builder_product_name = 'Divi';
 				var $row  = $wrapper.find( '.et_options_list_row:first' );
 				var $rows = $('<div>').addClass('et_options_rows');
 
-				options_value = JSON.parse( options_value );
+				try {
+					options_value = JSON.parse( options_value );
+				} catch (e) {
+					// ContactFormItemOptionsSerialization migration implementation for BB.
+					options_value = options_value.replace(/\{("value":")(.*?)(",)("checked":.,?.*?)\}/gi, function(match, m1, m2, m3, m4) {
+						var escapedContent = m2.replace(/(.)?(")/gi, function(match, m1, m2) {
+							if (m1 !== '\\') {
+								return m1 + '\\' + m2;
+							}
+							return match;
+						} );
+						return '{' + m1 + escapedContent + m3 + m4 + '}';
+					});
+					options_value = JSON.parse(options_value);
+				}
 
 				for ( var i = 0; i < options_value.length; i++ ) {
 					var option    = options_value[i];
@@ -15050,8 +15551,6 @@ window.et_builder_product_name = 'Divi';
 						$next_tab.css( { 'display' : 'block', 'opacity' : 0 } ).stop( true, true ).animate( { opacity : 1 }, fade_speed, function() {
 							var $this = $(this);
 
-							//et_pb_update_affected_fields( $et_affect_fields );
-
 							if ( ! $this.find( '.et-pb-option:visible' ).length && ! $next_tab.hasClass( 'et-pb-options-tab-view_stats' ) ) {
 								$this.append( '<p class="et-pb-all-options-hidden">' + et_pb_options.all_tab_options_hidden + '<p>' );
 							} else {
@@ -15115,7 +15614,7 @@ window.et_builder_product_name = 'Divi';
 			$custom_margin_fields.change( function() {
 				var $this_el    = $(this),
 					this_device = typeof $this_el.data( 'device' ) !== 'undefined' ? $this_el.data( 'device' ) : 'all',
-					$container  = $this_el.closest( '.et_custom_margin_padding' ),
+					$container  = $this_el.closest( '.et_margin_padding' ),
 					$main_container = $container.closest( '.et-pb-option-container' ),
 					$mobile_toggle = $main_container.find( '.et-pb-mobile-settings-toggle' ),
 					$main_field = 'all' === this_device ? $container.find( '.et_custom_margin_main' ) : $container.find( '.et_custom_margin_main.et_pb_setting_mobile_' + this_device ),
@@ -15355,11 +15854,12 @@ window.et_builder_product_name = 'Divi';
 					range_value       = $this_el.val(),
 					$range_input      = 'all' === this_device ? $this_el.siblings( '.et-pb-range-input' ) : $this_el.siblings( '.et-pb-range-input.et_pb_setting_mobile_' + this_device ),
 					initial_value_set = $range_input.data( 'initial_value_set' ) || false,
-					range_input_value = et_pb_sanitize_input_unit_value( $.trim( $range_input.val() ), false, 'no_default_unit' ),
+					default_unit      = $range_input.data( 'unit' ) || 'no_default_unit',
+					range_input_value = et_pb_sanitize_input_unit_value( $.trim( $range_input.val() ), false, default_unit ),
 					number,
 					length;
 
-				if ( range_input_value === '' && ! initial_value_set ) {
+				if (isNaN(parseFloat(range_input_value)) && ! initial_value_set) {
 					$this_el.val( 0 );
 					$range_input.data( 'initial_value_set', true );
 
@@ -15420,10 +15920,12 @@ window.et_builder_product_name = 'Divi';
 				} );
 			}
 
-			$range_input.on( 'keyup change', function( event ) {
+			$range_input.on( 'keyup change', _.debounce(function( event ) {
 				var $this_el      = $(this),
 					this_device   = typeof $this_el.data( 'device' ) === 'undefined' ? 'all' : $this_el.data( 'device' ),
-					this_value    = et_pb_get_range_input_value( $this_el, true ),
+					input_value   = et_pb_get_range_input_value( $this_el, true ),
+					default_unit  = $this_el.data( 'unit' ) || 'no_default_unit',
+					this_value    = et_pb_sanitize_input_unit_value( input_value, false, default_unit ),
 					$range_slider = 'all' === this_device ? $this_el.siblings( '.et-pb-range' ) : $this_el.siblings( '.et-pb-range.et_pb_setting_mobile_' + this_device ),
 					update_step   = false,
 					slider_value;
@@ -15437,16 +15939,16 @@ window.et_builder_product_name = 'Divi';
 
 				et_pb_check_range_boundaries( $range_slider, slider_value, update_step );
 
+				$this_el.val( this_value );
 				$range_slider.val( slider_value ).trigger( 'et_pb_setting:change' );
 
 				et_pb_update_mobile_defaults( $this_el );
-			} );
+			}, 700 ));
 
 			if ( $validate_unit_field.length ) {
 				$validate_unit_field.each( function() {
 					var $this_el = $(this),
 						value    = et_pb_sanitize_input_unit_value( $.trim( $this_el.val() ) );
-
 					$this_el.val( value );
 				} );
 			}
@@ -15541,6 +16043,10 @@ window.et_builder_product_name = 'Divi';
 
 			if ( 'section' === module_type ) {
 				module_type = 'et_pb_section';
+			}
+
+			if ('row' === module_type) {
+				module_type = 'et_pb_row';
 			}
 
 			if ( has( window.et_pb_module_field_dependencies, module_type ) ) {
@@ -15640,14 +16146,14 @@ window.et_builder_product_name = 'Divi';
 					var new_field_value        = $this_field.val();
 					var new_field_value_number = parseInt(new_field_value);
 
-					var data_affects_obj    = _.map( $this_field.data( 'affects' ).split(', '), function( affect ) {
-							var is_selector = ( 'image' !== affect ) && $( affect ).length;
+					var data_affects_obj    = _.map($this_field.data('affects').split(', '), function(affect) {
+							var is_selector = -1 !== affect.indexOf('#et_pb_');
 
 							return is_selector ? affect : '#et_pb_' + affect;
-						} );
+						});
 					var data_affects         = data_affects_obj.join(', ');
-					var $affected_fields     = $container.find( data_affects );
-					var this_field_tab_index = $this_field.closest( '.et-pb-options-tab' ).index();
+					var $affected_fields     = $container.find(data_affects);
+					var this_field_tab_index = $this_field.closest('.et-pb-options-tab').index();
 					var $changes_to_be_triggered = [];
 
 					var process_filed_visibility = function(field, hide) {
@@ -15656,6 +16162,7 @@ window.et_builder_product_name = 'Divi';
 
 						var $affected_field          = $(field);
 						var $affected_container      = $affected_field.closest( '.et-pb-option' );
+						var use_new_depends_method   = $affected_container.hasClass('et-pb-new-depends');
 						var is_text_trigger          = 'text' === $this_field.attr( 'type' ); // need to know if trigger is text field
 						var show_if                  = $affected_container.data( 'depends_show_if' ) || 'on';
 						var show_if_not              = is_text_trigger ? '' : $affected_container.data( 'depends_show_if_not' );
@@ -15671,6 +16178,8 @@ window.et_builder_product_name = 'Divi';
 							is_text_trigger
 							&&
 							! $this_field.is( ':visible' )
+							||
+							use_new_depends_method
 						) {
 							return;
 						}
@@ -15694,7 +16203,7 @@ window.et_builder_product_name = 'Divi';
 						// if the affected field affects other fields, find out if we need to hide/show them
 						if ( $dependant_fields.length ) {
 							var data_inner_affects_obj = _.map( $dependant_fields.data( 'affects' ).split(', '), function( affect ) {
-								var is_selector = ( 'image' !== affect ) && $( affect ).length;
+								var is_selector = -1 !== affect.indexOf('#et_pb_');
 
 								return is_selector ? affect : '#et_pb_' + affect;
 							} );
@@ -15756,35 +16265,38 @@ window.et_builder_product_name = 'Divi';
 						});
 					});
 				} );
-
-				// trigger change event for all dependant ( affected ) fields to show on settings page load
-				setTimeout( function() {
-					// make all settings visible to properly enable all affected fields
-					$settings_tab.css( { 'display' : 'block' } );
-
-					// include fields using more advanced dependency declaration instead of html5 data attrs
-					$et_affect_fields = $et_affect_fields.add( $other_et_affects );
-
-					$et_affect_fields.data( 'is_rendering_setting_view', true );
-
-					et_pb_update_affected_fields( $et_affect_fields );
-
-					$et_affect_fields.data( 'is_rendering_setting_view', false );
-
-					// After all affected fields is being processed return all tabs to the initial state
-					$settings_tab.css( { 'display' : 'none' } );
-					et_pb_open_current_tab();
-
-					// Remove all empty toggles which may appear in Section settings
-					if ( $( '.et-pb-option-toggle-content' ).length > 0 ) {
-						$( '.et-pb-option-toggle-content' ).each( function() {
-							if ( '' === $.trim( $( this ).text() ) ) {
-								$( this ).closest( '.et-pb-options-toggle-container' ).remove();
-							}
-						});
-					}
-				}, 100 );
 			}
+
+			// trigger change event for all dependant ( affected ) fields to show on settings page load
+			setTimeout( function() {
+				// make all settings visible to properly enable all affected fields
+				$settings_tab.css( { 'display' : 'block' } );
+
+				// include fields using more advanced dependency declaration instead of html5 data attrs
+				$et_affect_fields = $et_affect_fields.add( $other_et_affects );
+
+				$et_affect_fields.data( 'is_rendering_setting_view', true );
+
+				et_pb_update_affected_fields( $et_affect_fields );
+
+				$et_affect_fields.data( 'is_rendering_setting_view', false );
+
+				// After all affected fields is being processed return all tabs to the initial state
+				$settings_tab.css( { 'display' : 'none' } );
+				et_pb_open_current_tab();
+			}, 100 );
+
+			setTimeout(function() {
+				// Hide all empty toggles which may appear in Settings Modal
+				// Don't remove them from settings modal because some options rely on hidden fields in BB and some of them are conditional
+				if ($('.et-pb-option-toggle-content').length > 0) {
+					$('.et-pb-option-toggle-content').each(function() {
+						if ('' === $.trim($(this).text())) {
+							$(this).closest('.et-pb-options-toggle-container').addClass('et-pb-options-toggle-empty');
+						}
+					});
+				}
+			}, 100);
 
 			if ( $et_responsive_affect_fields.length ) {
 				$et_responsive_affect_fields.on( 'et_pb_setting:change', function() {
@@ -15892,6 +16404,17 @@ window.et_builder_product_name = 'Divi';
 			new ET_PageBuilder.Controls.BorderRadius($container);
 			new ET_PageBuilder.Controls.BorderStyles($container);
 			new ET_PageBuilder.Controls.TabbedControl($container.find('#et_pb_divider_settings').parent());
+
+      //open links within option descriptions on a new tab
+      $container.on('click', '.et-pb-option-container .description a', function(e) {
+        var url = e.target.href;
+
+        if (!_.isUndefined(url)) {
+          e.preventDefault();
+          var newTab = window.open(url, '_blank');
+          newTab.focus();
+        }
+      });
     }
 
 		function et_pb_render_multiple_buttons($input_el) {
@@ -16030,6 +16553,7 @@ window.et_builder_product_name = 'Divi';
 				range_processed = typeof range_value === 'string' ? range_value.trim() : range_value,
 				range_digit     = parseFloat( range_processed ),
 				range_string    = range_processed.toString().replace( range_digit, '' ),
+				range_default   = $range_field.data('default'),
 				result;
 
 			// no need to use Number.isNaN there. parseFloat guarantees that we have a number or `NaN` value at this point.
@@ -16050,7 +16574,7 @@ window.et_builder_product_name = 'Divi';
 				}
 			}
 
-			result = range_digit.toString() + range_string;
+			result = (range_digit.toString() + range_string) || range_default;
 
 			if ( update_element_value && result !== range_value ) {
 				$range_input.val( result );
@@ -16087,6 +16611,10 @@ window.et_builder_product_name = 'Divi';
 			var default_value = et_pb_get_default_setting_value($element).toLowerCase();
 			var current_value = _.isUndefined(ET_PageBuilder.Helpers.getSettingValue($element)) ? '' : ET_PageBuilder.Helpers.getSettingValue($element).toString().toLowerCase();
 			var is_range_option  = $element.hasClass('et-pb-range');
+
+			if (undefined === current_value || '' === String(current_value)) {
+				return true;
+			}
 
 			if ($element.is('select')  && default_value === '' && $element.prop('selectedIndex') === 0) {
 				return true;
@@ -16215,7 +16743,7 @@ window.et_builder_product_name = 'Divi';
 				$main_setting.wpColorPicker( 'color', default_value );
 
 				if ( default_value === '' ) {
-					$main_setting.siblings('.wp-picker-clear').trigger('click');
+					$option_container.find('.wp-picker-clear').trigger('click');
 				}
 
 				if ( ! $this_el.hasClass( 'et-pb-reset-setting' ) ) {
@@ -16336,12 +16864,12 @@ window.et_builder_product_name = 'Divi';
 			}
 
 			if( isNaN( parseFloat( value ) ) ) {
-				return '';
+				return value;
 			}
 
 			result = parseFloat( value );
 			if ( _.isUndefined( default_unit ) || 'no_default_unit' !== default_unit ) {
-				result += 'px';
+				result += default_unit || 'px';
 			}
 
 			// Return and automatically append px (default value)
@@ -16352,7 +16880,7 @@ window.et_builder_product_name = 'Divi';
 			var $this_field      = $element,
 				this_device      = typeof $this_field.data( 'device' ) !== 'undefined' ? $this_field.data( 'device' ) : 'all',
 				this_field_value = $this_field.val(),
-				$container       = $this_field.closest( '.et_custom_margin_padding' ),
+				$container       = $this_field.closest( '.et_margin_padding' ),
 				$main_container  = $container.closest( '.et-pb-option-container' ),
 				$mobile_toggle   = $main_container.find( '.et-pb-mobile-settings-toggle' ),
 				$margin_fields   = 'all' === this_device ? $container.find( '.et_custom_margin' ) : $container.find( '.et_custom_margin.et_pb_setting_mobile_' + this_device ),
@@ -17359,19 +17887,19 @@ window.et_builder_product_name = 'Divi';
 				} );
 			}
 
-			// If current loop is module, look for module item's migration content. Module item value migration won't be parsed correctly on page load because module item is not visibly rendered on page layout
+			// If current loop is module or row, look for module item's migration content. Module item value migration won't be parsed correctly on page load because module item is not visibly rendered on page layout
 			// thus, get module item based on current module's address then assign it as element to module object. This element will be fetched when module's setting modal is rendered
-			if ( 'module' === module_type ) {
-				var module_items_value_changes = {},
-					module_address_length = module_address.length;
+			if (_.includes(['module', 'row'], module_type)) {
+				var module_items_value_changes = {};
+				var module_address_length = module_address.length;
 
-				_.forEach( value_changes, function( item_changes, item_address ) {
-					if ( module_address + '.' === String( item_address ).substr( 0, ( module_address_length + 1 ) ) ) {
-						module_items_value_changes[ item_address.substr( module_address.length + 1 ) ] = item_changes;
+				_.forEach(value_changes, function(item_changes, item_address) {
+					if (module_address + '.' === String(item_address).substr(0, (module_address_length + 1))) {
+						module_items_value_changes[ item_address.substr(module_address.length + 1) ] = item_changes;
 					}
-				} );
+				});
 
-				if ( ! _.isEmpty( module_items_value_changes ) ) {
+				if (! _.isEmpty(module_items_value_changes)) {
 					curent_settings['named']['value_changes'] = module_items_value_changes;
 				}
 			}
@@ -17380,14 +17908,14 @@ window.et_builder_product_name = 'Divi';
 		}
 
 		function et_prepare_template_content( content ) {
-			if ( -1 !== content.indexOf( '[et_pb_' ) ) {
-				if  ( -1 === content.indexOf( 'et_pb_row' ) && -1 === content.indexOf( 'et_pb_section' ) ) {
-					if ( -1 === content.indexOf( 'et_pb_fullwidth' ) ) {
+			if (-1 !== content.indexOf('[et_pb_') || (et_pb_options.is_divi_library === '1' && et_pb_options.layout_type === 'module')) {
+				if  (-1 === content.indexOf('et_pb_row') && -1 === content.indexOf('et_pb_section')) {
+					if (-1 === content.indexOf('et_pb_fullwidth')) {
 						content = '[et_pb_section template_type="module" skip_module="true"][et_pb_row template_type="module" skip_module="true"][et_pb_column type="4_4"]' + content + '[/et_pb_column][/et_pb_row][/et_pb_section]';
 					} else {
 						content = '[et_pb_section fullwidth="on" template_type="module" skip_module="true"]' + content + '[/et_pb_section]';
 					}
-				} else if ( -1 === content.indexOf( 'et_pb_section' ) ) {
+				} else if (-1 === content.indexOf('et_pb_section')) {
 					content = '[et_pb_section template_type="row" skip_module="true"]' + content + '[/et_pb_section]';
 				}
 			}
@@ -17542,7 +18070,7 @@ window.et_builder_product_name = 'Divi';
 				return;
 			}
 
-			var tinymce_advanced_noautop = tinyMCEPreInit.mceInit.et_pb_content_new.tadv_noautop; // get the noautop option from tinyMCE advanced plugin
+			var tinymce_advanced_noautop = tinyMCEPreInit.mceInit.et_pb_content.tadv_noautop; // get the noautop option from tinyMCE advanced plugin
 
 			// do not apply autop, if such option is enabled in TinyMCE Advanced Plugin
 			if ( typeof tinymce_advanced_noautop !== 'undefined' && tinymce_advanced_noautop === true ) {
@@ -17557,7 +18085,7 @@ window.et_builder_product_name = 'Divi';
 					return;
 				}
 
-				var model_content = model.get( 'et_pb_content_new' );
+				var model_content = model.get( 'et_pb_content' );
 
 				if ( typeof model_content !== 'undefined' ) {
 					if ( editor_mode === 'tinymce' ) {
@@ -17571,7 +18099,7 @@ window.et_builder_product_name = 'Divi';
 						model_content = window.switchEditors.pre_wpautop( model_content );
 					}
 
-					model.set( 'et_pb_content_new', model_content, { silent : true } );
+					model.set( 'et_pb_content', model_content, { silent : true } );
 				}
 			} );
 		}
@@ -17616,11 +18144,10 @@ window.et_builder_product_name = 'Divi';
 				complete : function() {
 					ET_PageBuilder_Events.trigger( 'et-pb-loading:ended' );
 				},
-				success: function( data ) {
-					if ( data.error ) {
+				success: function(data) {
+					if (! data || data.error) {
 						// if global template not found, then make module not global.
-						view_settings.model.unset( 'et_pb_global_module' );
-						view_settings.model.unset( 'et_pb_saved_tabs' );
+						ET_PageBuilder_Layout.removeGlobalAttributes(view_settings);
 					} else {
 						var et_pb_shortcodes_tags = ET_PageBuilder_App.getShortCodeParentTags(),
 							reg_exp = window.wp.shortcode.regexp( et_pb_shortcodes_tags ),
@@ -17634,7 +18161,7 @@ window.et_builder_product_name = 'Divi';
 							et_pb_all_legacy_synced_options[ global_module_id ] = [];
 						}
 
-						_.each( matches, function ( shortcode ) {
+						_.each( matches, function ( shortcode, index ) {
 							var shortcode_element = shortcode.match( inner_reg_exp ),
 								shortcode_name = shortcode_element[2],
 								shortcode_attributes = shortcode_element[3] !== ''
@@ -17676,14 +18203,14 @@ window.et_builder_product_name = 'Divi';
 								}
 
 								if ( sync_content ) {
-									var content_storage = 'et_pb_content_new';
+									var content_storage = 'et_pb_content';
 									var et_pb_raw_shortcodes = ET_PageBuilder_App.getShortCodeRawContentTags();
 
 									// content storage name is different for raw shortcodes ( such as Code module ). Update the content storage name if needed.
 									if ( $.inArray( shortcode_name, et_pb_raw_shortcodes ) > -1 ) {
 										content_storage = 'et_pb_raw_content';
 
-										shortcode_content = _.unescape( shortcode_content );
+										shortcode_content = shortcode_content;
 										// replace line-break placeholders with real line-breaks
 										shortcode_content = shortcode_content.replace( /<!-- \[et_pb_line_break_holder\] -->/g, '\n' );
 									}
@@ -17709,8 +18236,10 @@ window.et_builder_product_name = 'Divi';
 						$('.et-pb-modal-preview-template').trigger( 'click' );
 					}
 
-					$( '.et_pb_modal_settings_container' ).addClass( 'et_pb_saved_global_modal et_pb_modal_selective_sync' );
-					et_pb_add_selective_sync_buttons( $( '.et_pb_modal_settings_container' ), global_module_id )
+					if (data && !data.error) {
+						$( '.et_pb_modal_settings_container' ).addClass( 'et_pb_saved_global_modal et_pb_modal_selective_sync' );
+						et_pb_add_selective_sync_buttons( $( '.et_pb_modal_settings_container' ), global_module_id );
+					}
 				}
 			} );
 		}
@@ -17735,7 +18264,7 @@ window.et_builder_product_name = 'Divi';
 				},
 				success: function( data ){
 					var global_content_is_different = false;
-					if ( data.error ) {
+					if (! data || data.error) {
 						// if global template not found, then make module and all child modules not global.
 						var this_view = ET_PageBuilder_Layout.getView( module_cid );
 
@@ -17868,6 +18397,19 @@ window.et_builder_product_name = 'Divi';
 			} else {
 				$container.find( '.et-pb-options-tabs .et-pb-options-tab.et-pb-options-tab-general' ).css( { 'display' : 'block', opacity : 1 } );
 			}
+
+			setEmptyTabContent($container);
+		}
+
+		function setEmptyTabContent($container) {
+			// add info message for tabs with no options available
+			$container.find('.et-pb-options-tab:visible').each(function() {
+				var $this = $(this);
+
+				if (!$this.find('.et-pb-option:visible').length) {
+					$this.append('<p class="et-pb-all-options-hidden">' + et_pb_options.all_tab_options_hidden + '<p>');
+				}
+			});
 		}
 
 		/**
@@ -17916,6 +18458,12 @@ window.et_builder_product_name = 'Divi';
 			return 0 < $( '.et_pb_modal_overlay, .et-core-modal-overlay.et-core-active' ).length;
 		}
 
+		function et_pb_can_module_add_siblings(model) {
+			var is_not_global = !ET_PageBuilder_Layout.is_global_children(model);
+			var global_library_is_editable = !!et_pb_options.et_builder_edit_global_library;
+			return is_not_global || global_library_is_editable;
+		}
+
 		/**
 		 * Prepare an object from hovered module for Shortcuts
 		 */
@@ -17953,7 +18501,7 @@ window.et_builder_product_name = 'Divi';
 			}
 
 			_.each( $options_array, function( $single_option ) {
-				var option_name = _.includes( ['content_new', 'raw_content'], $( $single_option ).data( 'option_name' ) ) ? 'et_pb_content_field' : $( $single_option ).data( 'option_name' );
+				var option_name = _.includes( ['content', 'raw_content'], $( $single_option ).data( 'option_name' ) ) ? 'et_pb_content_field' : $( $single_option ).data( 'option_name' );
 				var disabled_class = et_pb_is_option_unsynced( option_name, global_id ) ? ' et_pb_global_unsynced' : '';
 				var additional_options = $( $single_option ).find( '.et_pb_mobile_settings_tabs' ).length !== 0 ? 'mobile' : 'none';
 
@@ -18126,9 +18674,10 @@ window.et_builder_product_name = 'Divi';
 				return;
 			}
 
-
-			// do not override default hotkeys inside input fields
-			if ( typeof event.target !== 'undefined' && $( event.target ).is( 'input, textarea' ) ) {
+			var $targetEl = $(event.target);
+			// do not override default hotkeys inside input fields, contenteditable elements and elements with `et_disable_single_key_shortcuts`.
+			// `et_disable_single_key_shortcuts` can be used by 3rd party plugins to disable Divi shortcuts inside their metaboxes
+			if (!_.isUndefined($targetEl) && ($targetEl.is('input, textarea') || $targetEl.attr('contenteditable') || $targetEl.hasClass('et_disable_single_key_shortcuts'))) {
 				return;
 			}
 
@@ -18740,6 +19289,9 @@ window.et_builder_product_name = 'Divi';
 			ET_PB_Yoast_Content.prototype.et_pb_update_content = function( data ) {
 				var final_content = et_pb_processed_yoast_content || et_pb_options.yoast_content;
 
+				// Remove our loader
+				$('.et-pb-yoast-loading').remove();
+
 				return final_content;
 			};
 
@@ -18878,7 +19430,7 @@ window.et_builder_product_name = 'Divi';
 
 				return template;
 			},
-			options_tabs_output: function( options ){
+			settings_tabs_output: function( options ){
 				var template = _.template( $('#et-builder-options-tabs-links-template').html() ),
 					options_filtered = {},
 					options_filtered_index = 1,
@@ -18957,6 +19509,11 @@ window.et_builder_product_name = 'Divi';
 				$(window).trigger( 'resize' );
 			}, 50 );
 		} );
+
+		$(document).on('click', '.et-pb-dynamic-content-fb-switch', function(e) {
+			e.preventDefault();
+			$('#et_pb_fb_cta').click();
+		});
 	});
 
 } )(jQuery);

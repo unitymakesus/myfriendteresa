@@ -27,6 +27,13 @@ class ET_Builder_Module_Field_Divider extends ET_Builder_Module_Field_Base {
 	public static $data_utils = null;
 
 	/**
+	 * @var ET_Builder_Module_Helper_ResponsiveOptions
+	 *
+	 * @since 3.23
+	 */
+	public static $responsive = null;
+
+	/**
 	 * Constructor for the class. This is done so that the divider options could be filtered
 	 * by a child theme or plugin.
 	 */
@@ -38,9 +45,9 @@ class ET_Builder_Module_Field_Divider extends ET_Builder_Module_Field_Base {
 		 * @param array $dividers Array list of available dividers.
 		 */
 		$this->dividers = apply_filters( 'et_section_dividers', array(
-			'arrow-bottom'       => '<path d="M640 140L0 0v140h1280V0L640 140z"/>',
+			'arrow-bottom'       => '<path d="M640 139L0 0v140h1280V0L640 139z"/>',
 			'arrow-top'          => '<path d="M640 140L1280 0H0z"/>',
-			'arrow2-bottom'      => '<path d="M640 140L0 0v140h1280V0L640 140z" fill-opacity=".5"/><path d="M640 140L0 42v98h1280V42l-640 98z"/>',
+			'arrow2-bottom'      => '<path d="M640 139L0 0v140h1280V0L640 139z" fill-opacity=".5"/><path d="M640 139L0 42v98h1280V42l-640 97z"/>',
 			'arrow2-top'         => '<path d="M640 140L1280 0H0z" fill-opacity=".5"/><path d="M640 98l640-98H0z"/>',
 			'arrow3-bottom'      => '<path d="M0 140l640-70 640 70V0L640 70 0 0v140z" fill-opacity=".5"/><path d="M0 140h1280L640 70 0 140z"/>',
 			'arrow3-top'         => '<path d="M1280 0L640 70 0 0v140l640-70 640 70V0z" fill-opacity=".5"/><path d="M1280 0H0l640 70 640-70z"/>',
@@ -60,9 +67,9 @@ class ET_Builder_Module_Field_Divider extends ET_Builder_Module_Field_Base {
 			'clouds2-bottom2'     => '<path d="M1269.61,52.83a48.82,48.82,0,0,0-16,14.48A48.6,48.6,0,0,0,1229.45,69a70.88,70.88,0,0,0-134.21-25.66,49.11,49.11,0,0,0-82.51,34.9c-.44.23-.88.45-1.31.69a40.18,40.18,0,0,0-9.36,7.24,64.35,64.35,0,0,0-76.25-24.43A64.34,64.34,0,0,0,818.36,39.85a24.53,24.53,0,0,0-26.61-5A90,90,0,0,0,634.48,64.55a48.89,48.89,0,0,0-14.21,3.95A49.12,49.12,0,0,0,526.79,68a71.07,71.07,0,0,0-40.34,17A70.91,70.91,0,0,0,361,64.68a45.07,45.07,0,0,0-39.73.6,27.31,27.31,0,0,0-29-18.37c-.16-.29-.31-.59-.47-.89a90.06,90.06,0,0,0-155.12-3A80.23,80.23,0,0,0,12.64,99.75a80.1,80.1,0,0,0-12.64,2V140H1280V48.48A49.22,49.22,0,0,0,1269.61,52.83Z" fill-opacity=".5"/><path d="M1280,66.1a81.63,81.63,0,0,0-11.42.81,67.71,67.71,0,0,0-102.21-19,86,86,0,0,0-150.47-1.2c-.16.28-.29.57-.45.85a26.07,26.07,0,0,0-27.65,17.54,43,43,0,0,0-37.93-.57A67.66,67.66,0,0,0,830.13,84a67.85,67.85,0,0,0-38.51-16.19,46.9,46.9,0,0,0-89.25.45,46.66,46.66,0,0,0-13.56-3.77A86,86,0,0,0,538.66,36.07a23.42,23.42,0,0,0-25.4,4.8A61.36,61.36,0,0,0,410.68,61.74a61.44,61.44,0,0,0-72.79,23.32A38.37,38.37,0,0,0,329,78.15c-.41-.23-.83-.45-1.25-.66a46.88,46.88,0,0,0-78.77-33.31A67.65,67.65,0,0,0,120.69,70.29a46.76,46.76,0,0,0-21.82-1.62,46.91,46.91,0,0,0-78.8.07A79.46,79.46,0,0,0,0,66.17C-.07,66.17,0,140,0,140H1280Z"/>',
 			'clouds2-top'        => '<path d="M833.9 27.5c-5.8 3.2-11 7.3-15.5 12.2-7.1-6.9-17.5-8.8-26.6-5-30.6-39.2-87.3-46.1-126.5-15.5-1.4 1.1-2.8 2.2-4.1 3.4C674.4 33.4 684 48 688.8 64.3c4.7.6 9.3 1.8 13.6 3.8 7.8-24.7 34.2-38.3 58.9-30.5 14.4 4.6 25.6 15.7 30.3 30 14.2 1.2 27.7 6.9 38.5 16.2C840.6 49.6 876 29.5 910.8 38c-20.4-20.3-51.8-24.6-76.9-10.5zM384 43.9c-9 5-16.7 11.9-22.7 20.3 15.4-7.8 33.3-8.7 49.4-2.6 3.7-10.1 9.9-19.1 18.1-26-15.4-2.3-31.2.6-44.8 8.3zm560.2 13.6c2 2.2 3.9 4.5 5.7 6.9 5.6-2.6 11.6-4 17.8-4.1-7.6-2.4-15.6-3.3-23.5-2.8zM178.7 7c29-4.2 57.3 10.8 70.3 37 8.9-8.3 20.7-12.8 32.9-12.5C256.4 1.8 214.7-8.1 178.7 7zm146.5 56.3c1.5 4.5 2.4 9.2 2.5 14 .4.2.8.4 1.2.7 3.3 1.9 6.3 4.2 8.9 6.9 5.8-8.7 13.7-15.7 22.9-20.5-11.1-5.2-23.9-5.6-35.5-1.1zM33.5 54.9c21.6-14.4 50.7-8.5 65 13 .1.2.2.3.3.5 7.3-1.2 14.8-.6 21.8 1.6.6-10.3 3.5-20.4 8.6-29.4.3-.6.7-1.2 1.1-1.8-32.1-17.2-71.9-10.6-96.8 16.1zm1228.9 2.7c2.3 2.9 4.4 5.9 6.2 9.1 3.8-.5 7.6-.8 11.4-.8V48.3c-6.4 1.8-12.4 5-17.6 9.3zM1127.3 11c1.9.9 3.7 1.8 5.6 2.8 14.2 7.9 25.8 19.7 33.5 34 13.9-11.4 31.7-16.9 49.6-15.3-20.5-27.7-57.8-36.8-88.7-21.5z" fill-opacity=".5"/><path d="M0 0v66c6.8 0 13.5.9 20.1 2.6 3.5-5.4 8.1-10.1 13.4-13.6 24.9-26.8 64.7-33.4 96.8-16 10.5-17.4 28.2-29.1 48.3-32 36.1-15.1 77.7-5.2 103.2 24.5 19.7.4 37.1 13.1 43.4 31.8 11.5-4.5 24.4-4.2 35.6 1.1l.4-.2c15.4-21.4 41.5-32.4 67.6-28.6 25-21 62.1-18.8 84.4 5.1 6.7-6.6 16.7-8.4 25.4-4.8 29.2-37.4 83.3-44.1 120.7-14.8l1.8 1.5c37.3-32.9 94.3-29.3 127.2 8 1.2 1.3 2.3 2.7 3.4 4.1 9.1-3.8 19.5-1.9 26.6 5 24.3-26 65-27.3 91-3.1.5.5 1 .9 1.5 1.4 12.8 3.1 24.4 9.9 33.4 19.5 7.9-.5 15.9.4 23.5 2.8 7-.1 13.9 1.5 20.1 4.7 3.9-11.6 15.5-18.9 27.7-17.5.2-.3.3-.6.5-.9 22.1-39.2 70.7-54.7 111.4-35.6 30.8-15.3 68.2-6.2 88.6 21.5 18.3 1.7 35 10.8 46.5 25.1 5.2-4.3 11.1-7.4 17.6-9.3V0H0z"/>',
 			'clouds2-top2'        => '<path d="M833.9,77.67a64.2,64.2,0,0,0-15.53,12.18,24.53,24.53,0,0,0-26.61-5,90.1,90.1,0,0,0-130.57-12.1,85.54,85.54,0,0,1,27.62,41.73,46.66,46.66,0,0,1,13.56,3.77,46.9,46.9,0,0,1,89.25-.45A67.84,67.84,0,0,1,830.13,134,67.61,67.61,0,0,1,910.8,88.2,64.38,64.38,0,0,0,833.9,77.67Z M384,94.11a70.48,70.48,0,0,0-22.73,20.27,61.44,61.44,0,0,1,49.42-2.63,61.19,61.19,0,0,1,18.15-26A70.64,70.64,0,0,0,384,94.11Z M944.2,107.71a67.34,67.34,0,0,1,5.66,6.87,43.3,43.3,0,0,1,17.8-4.1A64.53,64.53,0,0,0,944.2,107.71Z M178.67,57.16a67.63,67.63,0,0,1,70.26,37,47.06,47.06,0,0,1,32.92-12.5A90.18,90.18,0,0,0,178.67,57.16Z M325.24,113.52a46.93,46.93,0,0,1,2.46,14c.42.22.84.43,1.25.66a38.38,38.38,0,0,1,8.94,6.92,61,61,0,0,1,22.94-20.48A45.09,45.09,0,0,0,325.24,113.52Z M33.49,105.13a46.91,46.91,0,0,1,65.38,13.55,46.75,46.75,0,0,1,21.82,1.62,67.13,67.13,0,0,1,8.58-29.39c.34-.6.7-1.19,1.06-1.78a80.19,80.19,0,0,0-96.84,16Z M1262.42,107.77a67.35,67.35,0,0,1,6.16,9.15,81.66,81.66,0,0,1,11.42-.81V98.48a48.83,48.83,0,0,0-17.58,9.29Z M1127.33,61.18c1.88.88,3.74,1.81,5.58,2.84A85.42,85.42,0,0,1,1166.37,98a68,68,0,0,1,49.55-15.27A70.94,70.94,0,0,0,1127.33,61.18Z" fill-opacity=".5"/><path d="M361,114.68l.23-.3-.43.22Z M0,0V120.87c0-3,0-4.69,0-4.69a79.35,79.35,0,0,1,20.06,2.57,46.56,46.56,0,0,1,13.42-13.62,80.19,80.19,0,0,1,96.84-16,67.52,67.52,0,0,1,48.33-32A90.18,90.18,0,0,1,281.84,81.67a46.82,46.82,0,0,1,43.4,31.85,45.09,45.09,0,0,1,35.59,1.07l.43-.22a70.84,70.84,0,0,1,67.57-28.6,61.47,61.47,0,0,1,84.42,5.09,23.42,23.42,0,0,1,25.4-4.8A86,86,0,0,1,661.19,72.72a90.1,90.1,0,0,1,130.57,12.1,24.53,24.53,0,0,1,26.61,5A64.37,64.37,0,0,1,910.8,88.2a67.45,67.45,0,0,1,33.4,19.51,64.53,64.53,0,0,1,23.45,2.77,42.8,42.8,0,0,1,20.14,4.67,26.07,26.07,0,0,1,27.65-17.54c.16-.28.29-.57.45-.85a86,86,0,0,1,111.44-35.58,70.94,70.94,0,0,1,88.59,21.52,67.79,67.79,0,0,1,46.5,25.07A48.83,48.83,0,0,1,1280,98.48V0Z"/>',
-			'curve-bottom'       => '<path d="M1280 140V0S993.46 140 640 140 0 0 0 0v140z"/>',
+			'curve-bottom'       => '<path d="M1280 140V0S993.46 140 640 139 0 0 0 0v140z"/>',
 			'curve-top'          => '<path d="M640 140C286.54 140 0 0 0 0h1280S993.46 140 640 140z"/>',
-			'curve2-bottom'      => '<path d="M725.29 101.2C325.22 122.48 0 0 0 0v140h1280V0s-154.64 79.92-554.71 101.2z" fill-opacity=".3"/><path d="M556.45 119.74C953.41 140 1280 14 1280 14v126H0V0s159.5 99.48 556.45 119.74z" fill-opacity=".5"/><path d="M640 140c353.46 0 640-140 640-140v140H0V0s286.54 140 640 140z"/>',
+			'curve2-bottom'      => '<path d="M725.29 101.2C325.22 122.48 0 0 0 0v140h1280V0s-154.64 79.92-554.71 101.2z" fill-opacity=".3"/><path d="M556.45 119.74C953.41 140 1280 14 1280 14v126H0V0s159.5 99.48 556.45 119.74z" fill-opacity=".5"/><path d="M640 140c353.46 0 640-140 640-139v140H0V0s286.54 140 640 140z"/>',
 			'curve2-top'         => '<path d="M0 0v.48C18.62 9.38 297.81 140 639.5 140 993.24 140 1280 0 1280 0z" fill-opacity=".3"/><path d="M0 .6c14 8.28 176.54 99.8 555.45 119.14C952.41 140 1280 0 1280 0H0z" fill-opacity=".5"/><path d="M726.29 101.2C1126.36 79.92 1281 0 1281 0H1c.05 0 325.25 122.48 725.29 101.2z"/>',
 			'graph-bottom'       => '<path d="M0 122.138l60.614 9.965 95.644-4.2 86.363-18.654 78.684 13.079L411.442 99.4l94.453 10.303L582.821 93.8l82.664 18.728 76.961-11.39L816.11 71.4l97.601 9.849L997.383 50.4l66.285 14.694 70.793-24.494h79.863L1280 0v140H0z"/>',
 			'graph-top'          => '<path d="M156.258 127.903l86.363-18.654 78.684 13.079L411.441 99.4l94.454 10.303L582.82 93.8l82.664 18.728 76.961-11.39L816.109 71.4l97.602 9.849L997.383 50.4l66.285 14.694 70.793-24.494h79.863L1280 0H0v122.138l60.613 9.965z"/>',
@@ -105,7 +112,10 @@ class ET_Builder_Module_Field_Divider extends ET_Builder_Module_Field_Base {
 
 	/**
 	 * Retrieves fields for divider settings.
-	 * @param  array  $args Associative array for settings.
+	 *
+	 * @since 3.23 Add responsive settings on Divider Style. Add allowed units on some range fields.
+	 *
+	 * @param  array $args Associative array for settings.
 	 * @return array       Option settings.
 	 */
 	public function get_fields( array $args = array() ) {
@@ -119,6 +129,7 @@ class ET_Builder_Module_Field_Divider extends ET_Builder_Module_Field_Base {
 				'controls' => array(
 					"{$placement}_divider_style"       => array(
 						'label'   => esc_html__( 'Divider Style', 'et_builder' ),
+						'description' => esc_html__( 'Select the divider shape that you would like to use. Shapes are represented visually within the list.', 'et_builder' ),
 						'type'    => 'divider',
 						'options' => array(
 							'none'        => esc_html__( 'None', 'et_builder' ),
@@ -137,10 +148,10 @@ class ET_Builder_Module_Field_Divider extends ET_Builder_Module_Field_Base {
 							'wave2'       => esc_html__( 'Wave 2', 'et_builder' ),
 							'waves'       => esc_html__( 'Waves', 'et_builder' ),
 							'waves2'      => esc_html__( 'Waves 2', 'et_builder' ),
-							'asymmetric'  => esc_html__( 'Assymetric', 'et_builder' ),
-							'asymmetric2' => esc_html__( 'Assymetric 2', 'et_builder' ),
-							'asymmetric3' => esc_html__( 'Assymetric 3', 'et_builder' ),
-							'asymmetric4' => esc_html__( 'Assymetric 4', 'et_builder' ),
+							'asymmetric'  => esc_html__( 'Asymmetric', 'et_builder' ),
+							'asymmetric2' => esc_html__( 'Asymmetric 2', 'et_builder' ),
+							'asymmetric3' => esc_html__( 'Asymmetric 3', 'et_builder' ),
+							'asymmetric4' => esc_html__( 'Asymmetric 4', 'et_builder' ),
 							'graph'       => esc_html__( 'Graph', 'et_builder' ),
 							'graph2'      => esc_html__( 'Graph 2', 'et_builder' ),
 							'graph3'      => esc_html__( 'Graph 3', 'et_builder' ),
@@ -151,17 +162,21 @@ class ET_Builder_Module_Field_Divider extends ET_Builder_Module_Field_Base {
 						),
 						'default' => 'none',
 						'flip'    => '',
+						'mobile_options' => true,
 					),
 					"{$placement}_divider_color"       => array(
 						'label'       => esc_html__( 'Divider Color', 'et_builder' ),
+						'description' => esc_html__( 'Pick a color to use for the section divider. By default, it will assume the color of the section above or below this section to ensure a smooth transition.', 'et_builder' ),
 						'type'        => 'color-alpha',
 						'default'     => '',
 						'show_if_not' => array(
 							"{$placement}_divider_style" => 'none',
 						),
+						'mobile_options' => true,
 					),
 					"{$placement}_divider_height"      => array(
 						'label'          => esc_html__( 'Divider Height', 'et_builder' ),
+						'description'    => esc_html__( 'Increase or decrease the height of the shape divider.', 'et_builder' ),
 						'type'           => 'range',
 						'range_settings' => array(
 							'min'  => 0,
@@ -169,6 +184,9 @@ class ET_Builder_Module_Field_Divider extends ET_Builder_Module_Field_Base {
 							'step' => 1,
 						),
 						'default'        => '100px',
+						'hover'          => 'tabs',
+						'allowed_units'  => array( '%', 'em', 'rem', 'px', 'cm', 'mm', 'in', 'pt', 'pc', 'ex', 'vh', 'vw' ),
+						'default_unit'   => 'px',
 						'show_if_not'    => array(
 							"{$placement}_divider_style" => 'none',
 						),
@@ -176,11 +194,13 @@ class ET_Builder_Module_Field_Divider extends ET_Builder_Module_Field_Base {
 					),
 					"{$placement}_divider_repeat"      => array(
 						'label'          => esc_html__( 'Divider Horizontal Repeat', 'et_builder' ),
+						'description'    => esc_html__( 'Choose how many times the shape divider should repeat. Setting to 1x will remove all repetition.', 'et_builder' ),
 						'type'           => 'range',
 						'range_settings' => array(
 							'min'  => 1,
 							'max'  => 20,
 							'step' => 1,
+							'min_limit' => 0,
 						),
 						'default'        => '1x',
 						'fixed_unit'     => 'x',
@@ -191,6 +211,7 @@ class ET_Builder_Module_Field_Divider extends ET_Builder_Module_Field_Base {
 					),
 					"{$placement}_divider_flip"        => array(
 						'label'       => esc_html__( 'Divider Flip', 'et_builder' ),
+						'description' => esc_html__( 'Flip the divider horizontally or vertically to change the shape and its direction.', 'et_builder' ),
 						'type'        => 'multiple_buttons',
 						'options'     => array(
 							'horizontal' => array(
@@ -208,9 +229,11 @@ class ET_Builder_Module_Field_Divider extends ET_Builder_Module_Field_Base {
 						'show_if_not'  => array(
 							"{$placement}_divider_style" => 'none',
 						),
+						'mobile_options'  => true,
 					),
 					"{$placement}_divider_arrangement" => array(
 						'label'       => esc_html__( 'Divider Arrangement', 'et_builder' ),
+						'description' => esc_html__( 'Dividers can be placed either above or below section content. If placed above section content, then modules and rows within the section will be hidden behind the divider when they overlap.', 'et_builder' ),
 						'type'        => 'select',
 						'options'     => array(
 							'above_content' => esc_html__( 'On Top Of Section Content', 'et_builder' ),
@@ -221,6 +244,7 @@ class ET_Builder_Module_Field_Divider extends ET_Builder_Module_Field_Base {
 							"{$placement}_divider_style" => 'none',
 							'fullwidth'                  => 'on',
 						),
+						'mobile_options' => true,
 					),
 				),
 			);
@@ -257,15 +281,14 @@ class ET_Builder_Module_Field_Divider extends ET_Builder_Module_Field_Base {
 
 		$additional_options['divider_settings'] = array(
 			'label'               => esc_html__( 'Dividers', 'et_builder' ),
+			'description'         => esc_html__( 'Section dividers allow you to add creative shape transitions between different sections on your page.', 'et_builder' ),
 			'tab_slug'            => $args['tab_slug'],
 			'toggle_slug'         => $args['toggle_slug'],
 			'attr_suffix'         => '',
 			'type'                => 'composite',
+			'option_category'     => 'layout',
 			'composite_type'      => 'default',
 			'composite_structure' => $structure,
-			'renderer'            => array(
-				'class' => 'ET_Builder_Module_Field_Template_Tabbed', // use default rendering.
-			),
 		);
 
 		return $additional_options;
@@ -276,12 +299,16 @@ class ET_Builder_Module_Field_Divider extends ET_Builder_Module_Field_Base {
 	 *
 	 * Adds a CSS class to the section, determines orientaion of the SVG, encodes an SVG to use as data
 	 * for the background-image property.
+	 *
+	 * @since 3.23 Pass values parameter to support responsive settings.
+	 *
 	 * @param  string $placement Whether it is the top or bottom divider.
 	 * @param  array $atts      Associative array of shortcode and their
 	 *                          respective values.
 	 * @param  string $breakpoint ''|tablet|phone
+	 * @param  array  $values     Existing responsive values.
 	 */
-	public function process_svg( $placement, $atts, $breakpoint = '' ) {
+	public function process_svg( $placement, $atts, $breakpoint = '', $values = array() ) {
 		// add a class to the section.
 		$this->classes[] = sprintf( 'et_pb_%s_divider', esc_attr( $placement ) );
 
@@ -293,33 +320,34 @@ class ET_Builder_Module_Field_Divider extends ET_Builder_Module_Field_Base {
 		$default_color    = ( 'top' === $placement ) ? $previous_section : $next_section;
 		$color            = ! empty( $atts[ "{$placement}_divider_color" ] ) ? $atts[ "{$placement}_divider_color" ] : $default_color;
 		$height           = ! empty( $atts[ "{$placement}_divider_height" ] ) ? $atts[ "{$placement}_divider_height" ] : '100px';
+		$height_hover     = et_pb_hover_options()->get_value( "{$placement}_divider_height", $atts, false );
 		$repeat           = ! empty( $atts[ "{$placement}_divider_repeat" ] ) ? floatval( $atts[ "{$placement}_divider_repeat" ] ) : 1;
 		$flip             = ( '' !== $atts[ "{$placement}_divider_flip" ] ) ? explode( '|', $atts[ "{$placement}_divider_flip" ] ) : array();
 		$arrangement      = ! empty( $atts[ "{$placement}_divider_arrangement" ] ) ? $atts[ "{$placement}_divider_arrangement" ] : 'below_content';
-		$style            = $atts[ "{$placement}_divider_style" ] . "-{$placement}";
+		$divider_style    = et_pb_responsive_options()->get_any_value( $atts, "{$placement}_divider_style", '', true, $breakpoint );
+		$style            = $divider_style . "-{$placement}";
 		$fullwidth        = $atts['fullwidth'];
 
 		// Apply adjustment for responsive styling
 		if ( '' !== $breakpoint ) {
-			// Check if responsive height is actually active
-			$is_responsive_height_active = et_pb_get_responsive_status( self::$data_utils->array_get( $atts, "{$placement}_divider_height_last_edited", '' ) );
+			// Get all responsive unique value.
+			$values = et_pb_responsive_options()->get_any_responsive_values( $atts, array(
+        		"{$placement}_divider_color"       => '',
+        		"{$placement}_divider_height"      => '',
+        		"{$placement}_divider_repeat"      => '',
+        		"{$placement}_divider_flip"        => '',
+        		"{$placement}_divider_arrangement" => '',
+        	), true, $breakpoint );
 
-			// adjust height for responsive styling
-			$responsive_height = self::$data_utils->array_get( $atts, "{$placement}_divider_height_${breakpoint}", false );
-
-			if ( $is_responsive_height_active && $responsive_height && '' !== $responsive_height ) {
-				$height = $responsive_height;
-			}
-
-
-			// Check if responsive repeat is actually active
-			$is_responsive_repeat_active = et_pb_get_responsive_status( self::$data_utils->array_get( $atts, "{$placement}_divider_repeat_last_edited", '' ) );
-
-			// adjust repeat for responsive styling
-			$responsive_repeat = self::$data_utils->array_get( $atts, "{$placement}_divider_repeat_${breakpoint}", false );
-
-			if ( $is_responsive_repeat_active && $responsive_repeat && '' !== $responsive_repeat ) {
-				$repeat = $responsive_repeat;
+        	// Replace all default values.
+        	$color       = ! empty( $values["{$placement}_divider_color"] ) ? $values["{$placement}_divider_color"] : $color;
+        	$height      = ! empty( $values["{$placement}_divider_height"] ) ? $values["{$placement}_divider_height"] : $height;
+        	$repeat      = ! empty( $values["{$placement}_divider_repeat"] ) ? floatval( $values["{$placement}_divider_repeat"] ) : $repeat;
+        	$flip        = ! empty( $values["{$placement}_divider_flip"] ) ? explode( '|', $values["{$placement}_divider_flip"] ) : $flip;
+			$arrangement = ! empty( $values["{$placement}_divider_arrangement"] ) ? $values[ "{$placement}_divider_arrangement" ] : $arrangement;
+			
+			if ( ! empty( $values["{$placement}_divider_flip"] ) && 'none' === $values["{$placement}_divider_flip"] ) {
+				$flip = array();
 			}
 		}
 
@@ -333,10 +361,10 @@ class ET_Builder_Module_Field_Divider extends ET_Builder_Module_Field_Base {
 		if ( in_array( 'vertical', $flip ) ) {
 			switch ( $placement ) {
 				case 'top':
-					$style = $atts[ "{$placement}_divider_style" ] . '-bottom';
+					$style = $divider_style . '-bottom';
 					break;
 				case 'bottom':
-					$style = $atts[ "{$placement}_divider_style" ] . '-top';
+					$style = $divider_style . '-top';
 					break;
 			}
 		}
@@ -364,7 +392,9 @@ class ET_Builder_Module_Field_Divider extends ET_Builder_Module_Field_Base {
 				break;
 		}
 
-		$svg = sprintf( $svg_markup, $height, $color, $this->dividers[ $style ] );
+		$divider_style = isset( $this->dividers[ $style ] ) ? $this->dividers[ $style ] : '';
+
+		$svg = sprintf( $svg_markup, $height, $color, $divider_style );
 
 		// encode the SVG so we can use it as data for background-image.
 		$this->svg = base64_encode( $svg ); // phpcs:ignore
@@ -410,9 +440,14 @@ class ET_Builder_Module_Field_Divider extends ET_Builder_Module_Field_Base {
 		// flipping the svg x|y
 		if ( in_array( 'horizontal', $flip ) ) {
 			$flip_styles[] = 'rotateY(180deg)';
+		} elseif ( '' !== $breakpoint ) {
+			$flip_styles[] = 'rotateY(0)';
 		}
+
 		if ( in_array( 'vertical', $flip ) ) {
 			$flip_styles[] = 'rotateX(180deg)';
+		} elseif ( '' !== $breakpoint ) {
+			$flip_styles[] = 'rotateX(0)';
 		}
 
 		if ( ! empty( $flip_styles ) ) {
@@ -454,6 +489,35 @@ class ET_Builder_Module_Field_Divider extends ET_Builder_Module_Field_Base {
 				'declaration' => 'background-color: transparent;',
 			) );
 		}
+
+		if ( false !== $height_hover ) {
+			$css         = '';
+			$height      = $height_hover;
+			$selector    = sprintf(
+				'%%order_class%%:hover.section_has_divider.et_pb_%1$s_divider .et_pb_%1$s_inside_divider',
+				esc_attr( $placement )
+			);
+
+			$declaration = array(
+				'height' => $height,
+			);
+
+			// Adjusts for when percentages are being used.
+			if ( 0 < strpos( $height, '%' ) ) {
+				$declaration['background-size'] = sprintf( '%1$s%% 100%%', floatval( 100 / $repeat ) );
+			} else {
+				$declaration['background-size'] = sprintf( '%1$s%% %2$s', floatval( 100 / $repeat ), $height );
+			}
+
+			foreach ( $declaration as $rule => $value ) {
+				$css .= esc_html( "{$rule}:{$value};" );
+			}
+
+			ET_Builder_Element::set_style( 'et_pb_section', array(
+				'selector'    => "$selector",
+				'declaration' => $css,
+			) );
+		}
 	}
 
 	/**
@@ -463,7 +527,7 @@ class ET_Builder_Module_Field_Divider extends ET_Builder_Module_Field_Base {
 	 */
 	public function get_svg( $placement ) {
 		// we return a div to use for the divider
-		return sprintf( '<div class="et_pb_%s_inside_divider"></div>', esc_attr( $placement ) );
+		return sprintf( '<div class="et_pb_%s_inside_divider et-no-transition"></div>', esc_attr( $placement ) );
 	}
 }
 
