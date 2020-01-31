@@ -65,6 +65,18 @@ class ET_Builder_Library {
 	}
 
 	/**
+	 * Compare by slug
+	 *
+	 * @param object $a
+	 * @param object $b
+	 *
+	 * @return bool
+	 */
+	public static function compare_by_slug( $a, $b ) {
+		return strcmp( $a->slug, $b->slug );
+	}
+
+	/**
 	 * Gets a translated string from {@see self::$_i18n}.
 	 *
 	 * @param string $string The untranslated string.
@@ -160,7 +172,7 @@ class ET_Builder_Library {
 
 		foreach ( $terms as $category ) {
 			$category_name = self::__( html_entity_decode( $category->name ), '@categories' );
-			$category_name = et_intentionally_unescaped( $category_name, 'react_jsx' );
+			$category_name = et_core_intentionally_unescaped( $category_name, 'react_jsx' );
 
 			if ( ! isset( $layout_categories[ $category->term_id ] ) ) {
 				$layout_categories[ $category->term_id ] = array(
@@ -182,7 +194,7 @@ class ET_Builder_Library {
 
 			if ( $id = get_post_meta( $post->ID, self::$_primary_category_key, true ) ) {
 				// $id is a string, $category->term_id is an int.
-				if ( $id == $category->term_id ) {
+				if ( $id === $category->term_id ) {
 					// This is the primary category (used in the layout URL)
 					$layout->category_slug = $category->slug;
 				}
@@ -207,7 +219,7 @@ class ET_Builder_Library {
 
 		$pack      = array_shift( $terms );
 		$pack_name = self::__( html_entity_decode( $pack->name ), '@packs' );
-		$pack_name = et_intentionally_unescaped( $pack_name, 'react_jsx' );
+		$pack_name = et_core_intentionally_unescaped( $pack_name, 'react_jsx' );
 
 		if ( ! isset( $layout_packs[ $pack->term_id ] ) ) {
 			$layout_packs[ $pack->term_id ] = array(
@@ -222,7 +234,7 @@ class ET_Builder_Library {
 		if ( $layout->is_landing ) {
 			$layout_packs[ $pack->term_id ]['thumbnail']     = $layout->thumbnail;
 			$layout_packs[ $pack->term_id ]['screenshot']    = $layout->screenshot;
-			$layout_packs[ $pack->term_id ]['description']   = et_intentionally_unescaped( html_entity_decode( $post->post_excerpt ), 'react_jsx' );
+			$layout_packs[ $pack->term_id ]['description']   = et_core_intentionally_unescaped( html_entity_decode( $post->post_excerpt ), 'react_jsx' );
 			$layout_packs[ $pack->term_id ]['category_slug'] = $layout->category_slug;
 			$layout_packs[ $pack->term_id ]['landing_index'] = $index;
 		}
@@ -385,8 +397,22 @@ class ET_Builder_Library {
 				}
 			}
 
-			$layout->name            = et_intentionally_unescaped( self::__( $title, '@layoutsLong' ), 'react_jsx' );
-			$layout->short_name      = et_intentionally_unescaped( self::__( $short_name, '@layoutsShort' ), 'react_jsx' );
+			$layout->name = $layout->short_name = '';
+
+			if ( $title ) {
+				// Remove periods since we use dot notation to retrieve translation
+				str_replace( '.', '', $title );
+
+				$layout->name = et_core_intentionally_unescaped( self::__( $title, '@layoutsLong' ), 'react_jsx' );
+			}
+
+			if ( $short_name ) {
+				// Remove periods since we use dot notation to retrieve translation
+				str_replace( '.', '', $title );
+
+				$layout->short_name = et_core_intentionally_unescaped( self::__( $short_name, '@layoutsShort' ), 'react_jsx' );
+			}
+
 			$layout->slug            = $post->post_name;
 			$layout->url             = esc_url( wp_make_link_relative( get_permalink( $post ) ) );
 
@@ -411,18 +437,406 @@ class ET_Builder_Library {
 			$index++;
 		}
 
-		return array(
+		/**
+		 * Filters data for the 'My Saved Layouts' tab.
+		 *
+		 * @since 3.1
+		 *
+		 * @param array[] $saved_layouts_data {
+		 *     Saved Layouts Data
+		 *
+		 *     @type array[]  $categories {
+		 *         Layout Categories
+		 *
+		 *         @type $id mixed[] {
+		 *             Category
+		 *
+		 *             @type int    $id      Id.
+		 *             @type int[]  $layouts Id's of layouts in category.
+		 *             @type string $name    Name.
+		 *             @type string $slug    Slug.
+		 *          }
+		 *          ...
+		 *     }
+		 *     @type array[]  $packs {
+		 *         Layout Packs
+		 *
+		 *         @type $id mixed[] {
+		 *             Pack
+		 *
+		 *             @type string $category_ids  Category ids.
+		 *             @type string $category_slug Primary category slug.
+		 *             @type string $date          Published date.
+		 *             @type string $description   Description.
+		 *             @type int    $id            Id.
+		 *             @type int[]  $layouts       Id's of layouts in pack.
+		 *             @type string $name          Name.
+		 *             @type string $screenshot    Screenshot URL.
+		 *             @type string $slug          Slug.
+		 *             @type string $thumbnail     Thumbnail URL.
+		 *          }
+		 *          ...
+		 *     }
+		 *     @type object[] $layouts {
+		 *         Layouts
+		 *
+		 *         @type object {
+		 *             Layout
+		 *
+		 *             @type int      $id ID
+		 *             @type string[] $categories
+		 *             @type int[]    $category_ids
+		 *             @type string   $category_slug
+		 *             @type int      $date
+		 *             @type string   $description
+		 *             @type int      $index
+		 *             @type bool     $is_global
+		 *             @type bool     $is_landing
+		 *             @type string   $name
+		 *             @type string   $screenshot
+		 *             @type string   $short_name
+		 *             @type string   $slug
+		 *             @type string   $thumbnail
+		 *             @type string   $thumbnail_small
+		 *             @type string   $type
+		 *             @type string   $url
+		 *         }
+		 *         ...
+		 *     }
+		 *     @type array[]  $sorted {
+		 *         Sorted Ids
+		 *
+		 *         @type int[] $categories
+		 *         @type int[] $packs
+		 *     }
+		 * }
+		 */
+		$saved_layouts_data = apply_filters( 'et_builder_library_saved_layouts', array(
 			'categories' => $layout_categories,
 			'packs'      => $layout_packs,
 			'layouts'    => $layouts,
 			'sorted'     => self::_sort_builder_library_data( $layout_categories, $layout_packs ),
+		) );
+
+		/**
+		 * Filters custom tabs layout data for the library modal. Custom tabs must be registered
+		 * via the {@see 'et_builder_library_modal_custom_tabs'} filter.
+		 *
+		 * @since 3.1
+		 *
+		 * @param array[] $custom_layouts_data {
+		 *     Custom Layouts Data Organized By Modal Tab
+		 *
+		 *     @type array[] $tab_slug See {@see 'et_builder_library_saved_layouts'} for array structure.
+		 *     ...
+		 * }
+		 * @param array[] $saved_layouts_data {@see 'et_builder_library_saved_layouts'} for array structure.
+		 */
+		$custom_layouts_data = apply_filters( 'et_builder_library_custom_layouts', array(
+			'existing_pages' => $this->builder_library_modal_custom_tabs_existing_pages(),
+		), $saved_layouts_data );
+
+		return array(
+			'layouts_data'        => $saved_layouts_data,
+			'custom_layouts_data' => $custom_layouts_data,
 		);
+	}
+
+	/**
+	 * Filters data for the 'Your Existing Pages' tab.
+	 *
+	 * @since 3.4
+	 *
+	 * @return array[] $saved_layouts_data {
+	 *     Existing Pages/Posts Data
+	 *
+	 *     @type array[]  $categories {
+	 *         Post Types Filters
+	 *
+	 *         @type $id mixed[] {
+	 *             Post Type
+	 *
+	 *             @type int    $id      Id.
+	 *             @type int[]  $layouts Id's of layouts in filter.
+	 *             @type string $name    Name.
+	 *             @type string $slug    Slug.
+	 *          }
+	 *          ...
+	 *     }
+	 *     @type array[]  $packs {
+	 *         Layout Packs
+	 *
+	 *         @type $id mixed[] {
+	 *             Pack
+	 *
+	 *             @type string $category_ids  Category ids.
+	 *             @type string $category_slug Primary category slug.
+	 *             @type string $date          Published date.
+	 *             @type string $description   Description.
+	 *             @type int    $id            Id.
+	 *             @type int[]  $layouts       Id's of layouts in pack.
+	 *             @type string $name          Name.
+	 *             @type string $screenshot    Screenshot URL.
+	 *             @type string $slug          Slug.
+	 *             @type string $thumbnail     Thumbnail URL.
+	 *          }
+	 *          ...
+	 *     }
+	 *     @type object[] $layouts {
+	 *         Pages/Posts Data
+	 *
+	 *         @type object {
+	 *             Page/Post Object
+	 *
+	 *             @type int      $id ID
+	 *             @type string[] $categories
+	 *             @type int[]    $category_ids
+	 *             @type string   $category_slug
+	 *             @type int      $date
+	 *             @type string   $description
+	 *             @type int      $index
+	 *             @type bool     $is_global
+	 *             @type bool     $is_landing
+	 *             @type string   $name
+	 *             @type string   $screenshot
+	 *             @type string   $short_name
+	 *             @type string   $slug
+	 *             @type string   $thumbnail
+	 *             @type string   $thumbnail_small
+	 *             @type string   $type
+	 *             @type string   $url
+	 *         }
+	 *         ...
+	 *     }
+	 *     @type array[]  $sorted {
+	 *         Sorted Ids
+	 *
+	 *         @type int[] $categories
+	 *         @type int[] $packs
+	 *     }
+	 * }
+	 */
+	protected function builder_library_modal_custom_tabs_existing_pages() {
+		et_core_nonce_verified_previously();
+
+		$categories = array();
+		$packs      = array();
+		$layouts    = array();
+		$index      = 0;
+
+		$thumbnail       = self::_get_image_size_name( 'thumbnail' );
+		$thumbnail_small = self::_get_image_size_name( 'thumbnail_small' );
+		$screenshot      = self::_get_image_size_name( 'screenshot' );
+
+		/**
+		 * Array of post types that should be listed as categories under "Existing Pages".
+		 *
+		 * @since 4.0
+		 *
+		 * @param string[] $post_types
+		 */
+		$post_types = apply_filters( 'et_library_builder_post_types', et_builder_get_builder_post_types() );
+
+		// Remove Extra's category layouts from "Your Existing Pages" layout list
+		if ( in_array( 'layout', $post_types ) ) {
+			unset( $post_types[ array_search( 'layout', $post_types ) ] );
+		}
+
+		if ( wp_doing_ajax() ) {
+			// VB case
+			$exclude = isset( $_POST['postId'] ) ? (int) $_POST['postId'] : false;
+		} else {
+			// BB case
+			$exclude = get_the_ID();
+		}
+
+		if ( $post_types ) {
+			$category_id  = 1;
+			$layout_index = 0;
+
+			// Keep track of slugs in case there are duplicates.
+			$seen = array();
+
+			foreach ( $post_types as $post_type ) {
+				if ( ET_BUILDER_LAYOUT_POST_TYPE === $post_type ) {
+					continue;
+				}
+
+				$post_type_obj = get_post_type_object( $post_type );
+
+				if ( ! $post_type_obj ) {
+					continue;
+				}
+
+				$category = new StdClass();
+
+				$category->id      = $category_id;
+				$category->layouts = array();
+				$category->slug    = $post_type;
+				$category->name    = $post_type_obj->label;
+
+				$query = new ET_Core_Post_Query( $post_type );
+
+				$posts = $query
+					// Do not include unused Theme Builder layouts. For more information
+					// see et_theme_builder_trash_draft_and_unused_posts().
+					->not()->with_meta( '_et_theme_builder_marked_as_unused' )
+					->run();
+
+				$posts = self::$_->array_sort_by( is_array( $posts ) ? $posts : array( $posts ), 'post_name' );
+
+				if ( ! empty( $posts ) ) {
+					foreach ( $posts as $post ) {
+						// Check if page builder is activated.
+						if ( ! et_pb_is_pagebuilder_used( $post->ID ) ) {
+							continue;
+						}
+
+						// Do not add the current page to the list
+						if ( $post->ID === $exclude ) {
+							continue;
+						}
+
+						// Check if content has shortcode.
+						if ( ! has_shortcode( $post->post_content, 'et_pb_section' ) ) {
+							continue;
+						}
+
+						// Only include posts that the user is allowed to edit
+						if ( ! current_user_can( 'edit_post', $post->ID ) ) {
+							continue;
+						}
+
+						$title = html_entity_decode( $post->post_title );
+
+						$slug  = $post->post_name;
+
+						if ( ! $slug ) {
+							// Generate a slug, if none is available - this is necessary as draft posts
+							// that have never been published will not have a slug by default.
+							$slug = wp_unique_post_slug( $post->post_title . '-' . $post->ID, $post->ID, $post->post_status, $post->post_type, $post->post_parent );
+						}
+
+						if ( empty( $title ) || empty( $slug ) ) {
+							continue;
+						}
+
+						// Make sure we don't have duplicate slugs since we're using them as key in React.
+						// slugs should always be unique but enabling/disabling WPML can break this rule.
+						if ( isset( $seen[ $slug ] ) ) {
+							continue;
+						}
+
+						$type_label = et_theme_builder_is_layout_post_type( $post_type )
+							? $post_type_obj->labels->singular_name
+							: $post_type;
+
+						$seen[ $slug ]              = true;
+						$layout                     = new stdClass();
+						$layout->index              = $index;
+						$layout->id                 = $post->ID;
+						$layout->date               = $post->post_date;
+						$layout->status             = $post->post_status;
+						$layout->icon               = 'layout';
+						$layout->type               = $type_label;
+						$layout->name               = et_core_intentionally_unescaped( $title, 'react_jsx' );
+						$layout->short_name         = et_core_intentionally_unescaped( $title, 'react_jsx' );
+						$layout->slug               = $slug;
+						$layout->url                = esc_url( wp_make_link_relative( get_permalink( $post ) ) );
+
+						$layout->thumbnail          = esc_url( get_the_post_thumbnail_url( $post->ID, $thumbnail ) );
+						$layout->thumbnail_small    = esc_url( get_the_post_thumbnail_url( $post->ID, $thumbnail_small ) );
+						$layout->screenshot         = esc_url( get_the_post_thumbnail_url( $post->ID, $screenshot ) );
+
+						$layout->categories         = array();
+						$layout->category_ids       = array( $category_id );
+
+						$layout->is_global          = false;
+						$layout->is_landing         = false;
+						$layout->description        = '';
+						$layout->category_slug      = $post_type;
+						// $layout_index is the array index, not the $post->ID
+						$category->layouts[]        = $layout_index;
+
+						$post_status_object         = get_post_status_object( $post->post_status );
+
+						$layout->status             = isset( $post_status_object->label ) ? $post_status_object->label : $post->post_status;
+
+						$layouts[ $layout_index++ ] = $layout;
+
+						$index++;
+					}
+				}
+
+				$categories[ $category_id++ ] = $category;
+			}
+		}
+
+		if ( count( $categories ) > 1) {
+			// Sort categories (post_type in this case) by slug
+			uasort( $categories, array( 'self', 'compare_by_slug' ) );
+		}
+
+		return array(
+			'categories' => $categories,
+			'packs'      => $packs,
+			'layouts'    => $layouts,
+			'options'    => array(
+				'content'    => array(
+					'title' => array(
+						et_core_intentionally_unescaped( self::__( '%d Pages' ), 'react_jsx' ),
+						et_core_intentionally_unescaped( self::__( '%d Page' ), 'react_jsx' ),
+					),
+				),
+				'sidebar'    => array(
+					'title' => et_core_intentionally_unescaped( self::__( 'Find A Page' ), 'react_jsx' ),
+				),
+				'list'       => array(
+					'columns' => array(
+						'status' => et_core_intentionally_unescaped( self::__( 'Status' ), 'react_jsx' ),
+					),
+				),
+			),
+			'sorted'     => array(
+				'categories' => array_keys( $categories ),
+				'packs'      => $packs,
+			),
+		);
+	}
+
+	/**
+	 * Get custom tabs for the library modal.
+	 *
+	 * @param string $post_type
+	 *
+	 * @return array[] {
+	 *     Custom Tabs
+	 *
+	 *     @type string $tab_slug Tab display name.
+	 *     ...
+	 * }
+	 */
+	public static function builder_library_modal_custom_tabs( $post_type ) {
+		/**
+		 * Filters custom tabs for the library modal.
+		 *
+		 * @since 3.1
+		 *
+		 * @param array[] $custom_tabs See {@self::builder_library_modal_custom_tabs()} return value.
+		 */
+		$custom_tabs = array();
+
+		if ( 'layout' !== $post_type ) {
+			$custom_tabs['existing_pages'] = esc_html__( 'Your Existing Pages', 'et_builder' );
+		}
+
+		return apply_filters( 'et_builder_library_modal_custom_tabs', $custom_tabs, $post_type );
 	}
 
 	/**
 	 * Gets the post types that have existing layouts built for them.
 	 *
-	 * @since ??  Supersedes {@see et_pb_get_standard_post_types()}
+	 * @since 3.1  Supersedes {@see et_pb_get_standard_post_types()}
 	 *            Supersedes {@see et_pb_get_used_built_for_post_types()}
 	 * @since 2.0
 	 *
@@ -443,10 +857,12 @@ class ET_Builder_Library {
 
 		global $wpdb;
 
-		$sql = "SELECT DISTINCT( meta_value ) FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value > ''";
-		$sql = $wpdb->prepare( $sql, '_et_pb_built_for_post_type' );
-
-		return $all_built_for_post_types = $wpdb->get_col( $sql );
+		return $all_built_for_post_types = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT( meta_value ) FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value > ''",
+				'_et_pb_built_for_post_type'
+			)
+		);
 	}
 
 	/**
@@ -468,7 +884,7 @@ class ET_Builder_Library {
 	 * Performs one-time maintenance tasks on library layouts in the database.
 	 * {@see 'admin_init'}
 	 *
-	 * @since ??  Relocated from `builder/layouts.php`. New task: create 'Legacy Layouts' category.
+	 * @since 3.1  Relocated from `builder/layouts.php`. New task: create 'Legacy Layouts' category.
 	 * @since 2.0
 	 */
 	public static function update_old_layouts() {
@@ -547,43 +963,73 @@ class ET_Builder_Library {
 	public function wp_ajax_et_builder_library_get_layout() {
 		et_core_security_check( 'edit_posts', 'et_builder_library_get_layout', 'nonce' );
 
-		if ( ! isset( $_POST['id'] ) ) {
+		$id = isset( $_POST['id'] ) ? (int) $_POST['id'] : 0;
+
+		if ( empty( $id ) ) {
 			wp_send_json_error();
 		}
 
-		$id      = (int) $_POST['id'];
-		$layouts = et_pb_retrieve_templates( 'layout', '', 'all', '0', 'all', 'all' );
-		$result  = array();
+		$result = array();
+		$post   = get_post( $id );
 
-		foreach ( $layouts as $layout ) {
-			if ( $id === $layout['ID'] ) {
-				$result = $layout;
+		$post_type = isset( $post->post_type ) ? $post->post_type : ET_BUILDER_LAYOUT_POST_TYPE;
+
+		switch ( $post_type ) {
+			case ET_BUILDER_LAYOUT_POST_TYPE:
+				$layouts = et_pb_retrieve_templates( 'layout', '', 'all', '0', 'all', 'all', array(), $post_type );
+
+				foreach ( $layouts as $layout ) {
+					if ( $id === $layout['ID'] ) {
+						$result = $layout;
+						break;
+					}
+				}
+
+				$result['savedShortcode'] = $result['shortcode'];
+
+				if ( ! isset( $_POST['is_BB'] ) ) {
+					$result['savedShortcode'] = et_fb_process_shortcode( $result['savedShortcode'] );
+				} else {
+					$post_content_processed = do_shortcode( $result['shortcode'] );
+					$result['migrations'] = ET_Builder_Module_Settings_Migration::$migrated;
+				}
+
+				unset( $result['shortcode'] );
 				break;
-			}
+			default:
+				$post_content = $post->post_content;
+				if ( ! isset( $_POST['is_BB'] ) ) {
+					$post_content = et_fb_process_shortcode( stripslashes( $post_content ) );
+				}
+				$result['savedShortcode'] = $post_content;
+				break;
 		}
 
-		$result['savedShortcode'] = $result['shortcode'];
-
-		if ( ! isset( $_POST['is_BB'] ) ) {
-			$result['savedShortcode'] = et_fb_process_shortcode( $result['savedShortcode'] );
-		}
-
-		unset( $result['shortcode'] );
-
-		$response = json_encode( array(
+		$response = wp_json_encode( array(
 			'success' => true,
 			'data'    => $result,
 		) );
 
-		$tmp_file = tempnam( '/tmp', 'et' );
+		$tmp_dir = function_exists( 'sys_get_temp_dir' ) ? sys_get_temp_dir() : '/tmp';
 
-		@file_put_contents( $tmp_file, $response );
+		$tmp_file = tempnam( $tmp_dir, 'et' );
+
+		et_()->WPFS()->put_contents( $tmp_file, $response );
+
+		// Remove any previous buffered content since we're setting `Content-Length` header
+		// based on $response value only.
+		while ( ob_get_level() ) {
+			ob_end_clean();
+		}
 
 		header( 'Content-Length: ' . @filesize( $tmp_file ) );
 
 		@unlink( $tmp_file );
 
-		die( $response );
+		// Charset has to be explicitly mentioned when it is other than UTF-8.
+		@header( 'Content-Type: application/json; charset=' . esc_attr( get_option( 'blog_charset' ) ) );
+
+		die( et_core_intentionally_unescaped( $response, 'html' ) );
 	}
 
 	/**
