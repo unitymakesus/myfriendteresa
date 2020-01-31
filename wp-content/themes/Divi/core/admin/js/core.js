@@ -11,8 +11,12 @@
 		},
 
 		$selector: function(selector) {
+			if (window.ET_Builder) {
+				return window.ET_Builder.Frames.top.jQuery(selector);
+			}
+
 			return window.top ? window.top.jQuery(selector) : jQuery(selector);
-		},		
+		},
 
 		applyMaxHeight: function() {
 			var $et_core_modal_overlay = this.$selector('.et-core-modal-overlay');
@@ -68,6 +72,10 @@
 			} );
 
 			$( document ).on( 'click', '[data-et-core-modal="close"], .et-core-modal-overlay', function( e ) {
+				if ($(this).data('et-core-disable-closing')) {
+					return;
+				}
+
 				$this.modalClose( e, this );
 			} );
 
@@ -170,16 +178,21 @@
 
 	} );
 
-	$( window ).on( 'et-core-modal-active', function() {
-		etCore.applyMaxHeight();
-	} );
+	setTimeout(function() {
+		if ($('.wrap.woocommerce').length) {
+			return;
+		}
 
-	$( document ).ready( function() {
-		etCore.init();
+		$(window).on('et-core-modal-active', function() {
+			etCore.applyMaxHeight();
+		});
+
+		$(document).ready(function() {
+			etCore.init();
+		});
+
+		$(window).resize(function() {
+			etCore.applyMaxHeight();
+		});
 	});
-
-	$( window ).resize( function() {
-		etCore.applyMaxHeight();
-	} );
-
 })(jQuery);

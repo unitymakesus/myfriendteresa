@@ -341,7 +341,7 @@ class ET_Builder_Module_Filterable_Portfolio extends ET_Builder_Module_Type_Post
 	}
 
 	static function get_portfolio_item( $args = array(), $conditional_tags = array(), $current_page = array() ) {
-		global $et_fb_processing_shortcode_object;
+		global $et_fb_processing_shortcode_object, $post;
 
 		$global_processing_original_value = $et_fb_processing_shortcode_object;
 
@@ -393,6 +393,7 @@ class ET_Builder_Module_Filterable_Portfolio extends ET_Builder_Module_Type_Post
 			$post_index = 0;
 			while ( $query->have_posts() ) {
 				$query->the_post();
+				ET_Post_Stack::replace( $post );
 
 				$categories = array();
 
@@ -418,11 +419,14 @@ class ET_Builder_Module_Filterable_Portfolio extends ET_Builder_Module_Type_Post
 					}
 				}
 
-				// need to disable processnig to make sure get_thumbnail() doesn't generate errors
+				// need to disable processing to make sure get_thumbnail() doesn't generate errors
 				$et_fb_processing_shortcode_object = false;
 
+				// Capture the ALT text defined in WP Media Library
+				$alttext = get_post_meta( get_post_thumbnail_id(), '_wp_attachment_image_alt', true );
+
 				// Get thumbnail
-				$thumbnail = get_thumbnail( $width, $height, $classtext, $titletext, $titletext, false, 'Blogimage' );
+				$thumbnail = get_thumbnail( $width, $height, $classtext, $alttext, $titletext, false, 'Blogimage' );
 
 				$et_fb_processing_shortcode_object = $global_processing_original_value;
 
@@ -436,13 +440,13 @@ class ET_Builder_Module_Filterable_Portfolio extends ET_Builder_Module_Type_Post
 				$category_classes = implode( ' ', $category_classes );
 
 				$post_index++;
+				ET_Post_Stack::pop();
 			}
+			ET_Post_Stack::reset();
 		} else if ( self::is_processing_computed_prop() ) {
 			// This is for the VB
 			$query = array( 'posts' => self::get_no_results_template() );
 		}
-
-		wp_reset_postdata();
 
 		return $query;
 	}
@@ -466,6 +470,8 @@ class ET_Builder_Module_Filterable_Portfolio extends ET_Builder_Module_Type_Post
 	}
 
 	function render( $attrs, $content = null, $render_slug ) {
+		global $post;
+
 		$multi_view                      = et_pb_multi_view_options( $this );
 		$fullwidth                       = $this->props['fullwidth'];
 		$posts_number                    = $this->props['posts_number'];
@@ -477,14 +483,6 @@ class ET_Builder_Module_Filterable_Portfolio extends ET_Builder_Module_Type_Post
 		$zoom_icon_color                 = $this->props['zoom_icon_color'];
 		$hover_overlay_color             = $this->props['hover_overlay_color'];
 		$header_level                    = $this->props['title_level'];
-
-		$background_layout               = $this->props['background_layout'];
-		$background_layout_hover         = et_pb_hover_options()->get_value( 'background_layout', $this->props, 'light' );
-		$background_layout_hover_enabled = et_pb_hover_options()->is_enabled( 'background_layout', $this->props );
-		$background_layout_values        = et_pb_responsive_options()->get_property_values( $this->props, 'background_layout' );
-		$background_layout_tablet        = isset( $background_layout_values['tablet'] ) ? $background_layout_values['tablet'] : '';
-		$background_layout_phone         = isset( $background_layout_values['phone'] ) ? $background_layout_values['phone'] : '';
-
 
 		wp_enqueue_script( 'hashchange' );
 
@@ -521,6 +519,7 @@ class ET_Builder_Module_Filterable_Portfolio extends ET_Builder_Module_Type_Post
 		if( $projects->post_count > 0 ) {
 			while ( $projects->have_posts() ) {
 				$projects->the_post();
+				ET_Post_Stack::replace( $post );
 
 				$category_classes = array();
 				$categories = get_the_terms( get_the_ID(), 'project_category' );
@@ -547,14 +546,15 @@ class ET_Builder_Module_Filterable_Portfolio extends ET_Builder_Module_Type_Post
 					$width = 'on' === $fullwidth ?  1080 : 400;
 					$width = (int) apply_filters( 'et_pb_portfolio_image_width', $width );
 
-					$height = 'on' === $fullwidth ?  9999 : 284;
-					$height = (int) apply_filters( 'et_pb_portfolio_image_height', $height );
+					$height    = 'on' === $fullwidth ? 9999 : 284;
+					$height    = (int) apply_filters( 'et_pb_portfolio_image_height', $height );
 					$classtext = 'on' === $fullwidth ? 'et_pb_post_main_image' : '';
 					$titletext = get_the_title();
 					$permalink = get_permalink();
 					$post_meta = get_the_term_list( get_the_ID(), 'project_category', '', ', ' );
-					$thumbnail = get_thumbnail( $width, $height, $classtext, $titletext, $titletext, false, 'Blogimage' );
-					$thumb = $thumbnail["thumb"];
+					$alttext   = get_post_meta( get_post_thumbnail_id(), '_wp_attachment_image_alt', true );
+					$thumbnail = get_thumbnail( $width, $height, $classtext, $alttext, $titletext, false, 'Blogimage' );
+					$thumb     = $thumbnail["thumb"];
 
 
 					if ( '' !== $thumb ) : ?>
@@ -612,10 +612,10 @@ class ET_Builder_Module_Filterable_Portfolio extends ET_Builder_Module_Type_Post
 				?>
 				</div><!-- .et_pb_portfolio_item -->
 				<?php
+				ET_Post_Stack::pop();
 			}
+			ET_Post_Stack::reset();
 		}
-
-		wp_reset_postdata();
 
 		if ( ! $posts = ob_get_clean() ) {
 			$posts            = self::get_no_results_template();
@@ -657,17 +657,12 @@ class ET_Builder_Module_Filterable_Portfolio extends ET_Builder_Module_Type_Post
 		// Module classnames
 		$this->add_classname( array(
 			'et_pb_portfolio',
-			"et_pb_bg_layout_{$background_layout}",
 			$this->get_text_orientation_classname(),
 		) );
 
-		if ( ! empty( $background_layout_tablet ) ) {
-			$this->add_classname( "et_pb_bg_layout_{$background_layout_tablet}_tablet" );
-		}
-
-		if ( ! empty( $background_layout_phone ) ) {
-			$this->add_classname( "et_pb_bg_layout_{$background_layout_phone}_phone" );
-		}
+		// Background layout class names.
+		$background_layout_class_names = et_pb_background_layout_options()->get_background_layout_class( $this->props );
+		$this->add_classname( $background_layout_class_names );
 
 		if ( 'on' === $fullwidth ) {
 			$this->add_classname( 'et_pb_filterable_portfolio_fullwidth' );
@@ -678,19 +673,8 @@ class ET_Builder_Module_Filterable_Portfolio extends ET_Builder_Module_Type_Post
 			) );
 		}
 
-		$data_background_layout       = '';
-		$data_background_layout_hover = '';
-
-		if ( $background_layout_hover_enabled ) {
-			$data_background_layout = sprintf(
-				' data-background-layout="%1$s"',
-				esc_attr( $background_layout )
-			);
-			$data_background_layout_hover = sprintf(
-				' data-background-layout-hover="%1$s"',
-				esc_attr( $background_layout_hover )
-			);
-		}
+		// Background layout data attributes.
+		$data_background_layout = et_pb_background_layout_options()->get_background_layout_attrs( $this->props );
 
 		$pagination_classes_multi_view_attr = $multi_view->render_attrs( array(
 			'classes' =>  array(
@@ -717,12 +701,12 @@ class ET_Builder_Module_Filterable_Portfolio extends ET_Builder_Module_Type_Post
 		) );
 
 		$output = sprintf(
-			'<div%4$s class="%1$s" data-posts-number="%5$d"%8$s%11$s%12$s>
+			'<div%4$s class="%1$s" data-posts-number="%5$d"%8$s%11$s>
 				%10$s
 				%9$s
 				<div class="et_pb_portfolio_filters clearfix">%2$s</div><!-- .et_pb_portfolio_filters -->
 
-				<div class="et_pb_portfolio_items_wrapper %6$s"%13$s>
+				<div class="et_pb_portfolio_items_wrapper %6$s"%12$s>
 					<div class="et_pb_portfolio_items">%3$s</div><!-- .et_pb_portfolio_items -->
 				</div>
 				%7$s
@@ -738,7 +722,6 @@ class ET_Builder_Module_Filterable_Portfolio extends ET_Builder_Module_Type_Post
 			$video_background,
 			$parallax_image_background, // #10
 			et_core_esc_previously( $data_background_layout ),
-			et_core_esc_previously( $data_background_layout_hover ),
 			$pagination_classes_multi_view_attr
 		);
 

@@ -123,6 +123,12 @@ class ET_Builder_Module_Accordion_Item extends ET_Builder_Module {
 					'main' => '%%order_class%% .et_pb_toggle_content'
 				)
 			),
+			'position_fields'       => array(
+				'default' => 'relative',
+			),
+			'z_index'               => array(
+				'default' => '1',
+			),
 		);
 
 		$this->custom_css_fields = array(
